@@ -1,0 +1,24 @@
+# Production environment configuration
+# Extends base.yaml with production-specific overrides
+
+# Application
+app:
+  debug: false
+
+# Server
+server:
+  port: 8000
+
+# Logging
+logging:
+  level: "WARNING"
+
+# CORS (production - restrictive)
+cors:
+  allow_origins:
+    - "https://api.neuronsinc.com"
+
+# Processing
+processing:
+  max_iterations: 3
+  processing_timeout_seconds: 300
