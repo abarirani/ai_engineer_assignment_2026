@@ -11,10 +11,6 @@ app:
 api:
   v1_prefix: "/api/v1"
 
-# Server
-server:
-  host: "0.0.0.0"
-
 # Storage
 storage:
   upload_dir: "data/input"

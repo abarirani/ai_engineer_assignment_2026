@@ -78,18 +78,7 @@ export APP_ENV=production
 The application can be started using the module entry point, which automatically reads the server configuration from the YAML config files:
 
 ```bash
-python -m app.main
-```
-
-By default, this will run on:
-- **Development** (`APP_ENV=development`): `http://0.0.0.0:5050`
-- **Production** (`APP_ENV=production`): `http://0.0.0.0:8000`
-
-You can override the environment by setting `APP_ENV`:
-
-```bash
-export APP_ENV=production
-python -m app.main
+uvicorn app.main:app --reload --host 0.0.0.0 --port 5050
 ```
 
 5. **Access the API documentation:**

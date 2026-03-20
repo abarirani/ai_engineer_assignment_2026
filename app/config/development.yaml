@@ -5,10 +5,6 @@
 app:
   debug: true
 
-# Server
-server:
-  port: 5050
-
 # Logging
 logging:
   level: "DEBUG"

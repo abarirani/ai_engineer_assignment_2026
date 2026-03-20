@@ -86,13 +86,6 @@ class ApiSettings(BaseSettings):
     v1_prefix: str = Field(default="/api/v1", description="API v1 prefix")
 
 
-class ServerSettings(BaseSettings):
-    """Server settings."""
-
-    host: str = Field(default="0.0.0.0", description="Server host")
-    port: int = Field(default=8000, description="Server port")
-
-
 class StorageSettings(BaseSettings):
     """Storage settings."""
 
@@ -126,21 +119,13 @@ class CORSSettings(BaseSettings):
     """CORS settings."""
 
     allow_origins: List[str] = Field(
-        default=["*"],
-        description="Allowed origins for CORS"
+        default=["*"], description="Allowed origins for CORS"
     )
     allow_credentials: bool = Field(
-        default=True,
-        description="Allow credentials in requests"
+        default=True, description="Allow credentials in requests"
     )
-    allow_methods: List[str] = Field(
-        default=["*"],
-        description="Allowed HTTP methods"
-    )
-    allow_headers: List[str] = Field(
-        default=["*"],
-        description="Allowed HTTP headers"
-    )
+    allow_methods: List[str] = Field(default=["*"], description="Allowed HTTP methods")
+    allow_headers: List[str] = Field(default=["*"], description="Allowed HTTP headers")
 
 
 class Settings(BaseSettings):
@@ -152,7 +137,6 @@ class Settings(BaseSettings):
     # Nested settings matching YAML structure
     app: AppSettings = Field(default_factory=AppSettings)
     api: ApiSettings = Field(default_factory=ApiSettings)
-    server: ServerSettings = Field(default_factory=ServerSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
     processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
