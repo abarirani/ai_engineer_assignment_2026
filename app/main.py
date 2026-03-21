@@ -12,6 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.endpoints import router as api_router
 from app.config.settings import settings
+from app.observability import init_observability
 
 # Configure logging
 logging.basicConfig(
@@ -35,6 +36,11 @@ async def lifespan(app: FastAPI):
     """
     # Startup events
     logger.info(f"Starting {settings.app.name} v{settings.app.version}")
+
+    # Initialize OpenTelemetry observability
+    init_observability()
+    logger.info("OpenTelemetry tracing initialized")
+
     logger.info("Application startup complete")
 
     yield

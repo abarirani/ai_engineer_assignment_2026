@@ -19,6 +19,7 @@ from app.models.schemas import (
     ProcessRequest,
     ProcessResponse,
 )
+from app.services import WorkflowService
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,9 @@ router = APIRouter()
 
 # In-memory job storage (replace with Redis/database in production)
 jobs: Dict[str, Dict] = {}
+
+# Initialize the workflow service
+workflow_service = WorkflowService()
 
 
 def generate_job_id() -> str:
@@ -45,64 +49,6 @@ async def save_uploaded_file(file: UploadFile) -> str:
         shutil.copyfileobj(file.file, buffer)
 
     return str(file_path)
-
-
-async def process_job_background(job_id: str) -> None:
-    """Background task to process a job."""
-    logger.info(f"Starting background processing for job: {job_id}")
-
-    if job_id not in jobs:
-        logger.error(f"Job not found: {job_id}")
-        return
-
-    job = jobs[job_id]
-    job["status"] = JobStatusEnum.PROCESSING
-    job["updated_at"] = datetime.utcnow()
-    job["progress"] = 0
-    job["message"] = "Processing started"
-
-    try:
-        # Placeholder for actual processing logic
-        # This will be implemented in Phase 2-4 with agents
-        logger.info(
-            f"Processing job {job_id} with {len(job['request'].recommendations)} recommendations"
-        )
-
-        # Simulate processing progress
-        job["progress"] = 50
-        job["message"] = "Generating variants..."
-
-        # Complete processing
-        job["progress"] = 100
-        job["status"] = JobStatusEnum.COMPLETED
-        job["completed_at"] = datetime.utcnow()
-        job["message"] = "Processing completed successfully"
-        job["result"] = {
-            "job_id": job_id,
-            "status": JobStatusEnum.COMPLETED,
-            "input_image_url": job.get("image_url"),
-            "variants": [],
-            "audit_trail": [
-                {
-                    "step": "upload",
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "status": "completed",
-                },
-                {
-                    "step": "processing",
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "status": "completed",
-                },
-            ],
-        }
-
-        logger.info(f"Job {job_id} completed successfully")
-
-    except Exception as e:
-        logger.exception(f"Error processing job {job_id}: {e}")
-        job["status"] = JobStatusEnum.FAILED
-        job["error"] = str(e)
-        job["updated_at"] = datetime.utcnow()
 
 
 @router.post(
@@ -163,7 +109,7 @@ async def process_image(
     }
 
     # Schedule background processing
-    background_tasks.add_task(process_job_background, job_id)
+    background_tasks.add_task(workflow_service.process_job, job_id, jobs)
 
     logger.info(
         f"Job {job_id} created with {len(request.recommendations)} recommendations"

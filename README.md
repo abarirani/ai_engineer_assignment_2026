@@ -2,48 +2,16 @@
 
 A containerized, asynchronous backend service that implements a multi-agent workflow for generating visual recommendations on marketing creatives.
 
-## Project Status
-
-**Phase 1: Foundation** - ✅ Complete
-
 ## Overview
 
 This system processes input images, applies textual recommendations while respecting brand guidelines, and evaluates the results through an iterative generation-evaluation-refinement loop.
-
-## Architecture
-
-```
-graph TB
-    A[Client Request] --> B[FastAPI Backend]
-    B --> C[Orchestrator Agent]
-    C --> D[Planner Agent]
-    D --> E[Task Decomposition]
-    E --> F[Editor Agent]
-    F --> G[Image Generation Tools]
-    G --> H[Critic Agent]
-    H --> I{Evaluation Pass?}
-    I -->|No| J[Refiner Agent]
-    J --> K[Prompt/Parameter Adjustment]
-    K --> F
-    I -->|Yes| L[Output Assembly]
-    L --> M[Audit Trail Generation]
-    M --> N[Response to Client]
-```
-
-## Technology Stack
-
-- **Backend Framework**: FastAPI (async support)
-- **Agentic Framework**: LangGraph (Phase 2+)
-- **Image Generation**: FLUX.2 [klein] 4B (Phase 3+)
-- **Vision-Language Model**: Qwen3.5 27B (Phase 4+)
-- **Containerization**: Docker + docker-compose
 
 ## Quick Start
 
 ### Prerequisites
 
 - Python 3.11+
-- Docker & Docker Compose (optional)
+- Docker
 
 ### Local Development
 
@@ -54,13 +22,13 @@ bash setup-venv.sh
 source .venv/bin/activate
 ```
 
-2. **Install dependencies:**
+2. **Install dependencies (developement):**
 
 ```bash
-pip install -r requirements.txt
+pip install -e .[testing]
 ```
 
-3. **Configure environment (optional):**
+3. **Configure environment:**
 
 The application uses YAML-based configuration files for managing different environments:
 - `app/config/base.yaml` - Base configuration (common settings)
@@ -85,16 +53,6 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 5050
 
 - Swagger UI: http://localhost:5050/docs (development)
 - ReDoc: http://localhost:5050/redoc (development)
-
-### Docker Development
-
-```bash
-# Build and run with docker-compose
-docker-compose up --build
-
-# Or run in detached mode
-docker-compose up -d --build
-```
 
 ## API Endpoints
 
@@ -159,51 +117,3 @@ Retrieve the complete result of a completed job.
   "completed_at": "2026-03-20T10:00:30Z"
 }
 ```
-
-## Project Structure
-
-```
-ai_engineer_assignment_2026/
-├── app/
-│   ├── __init__.py
-│   ├── main.py                 # FastAPI application entry point
-│   ├── api/
-│   │   ├── __init__.py
-│   │   └── endpoints.py        # API endpoint definitions
-│   ├── agents/                 # (Phase 2+)
-│   ├── models/
-│   │   ├── __init__.py
-│   │   └── schemas.py          # Pydantic schemas
-│   ├── services/               # (Phase 2+)
-│   ├── utils/                  # (Phase 2+)
-│   └── config/
-│       ├── __init__.py
-│       ├── settings.py         # Configuration management
-│       ├── base.yaml           # Base configuration
-│       ├── development.yaml    # Development environment config
-│       └── production.yaml     # Production environment config
-├── data/
-│   ├── input/                  # Uploaded images
-│   └── output/                 # Generated outputs
-├── docker/
-│   └── Dockerfile.backend      # Backend Dockerfile
-├── docker-compose.yml
-├── requirements.txt
-├── .env.example
-└── README.md
-```
-
-## Implementation Phases
-
-| Phase | Status | Description |
-|-------|--------|-------------|
-| Phase 1 | ✅ Complete | Foundation: FastAPI setup, API endpoints, Pydantic models, Docker config |
-| Phase 2 | ⏳ Pending | Agent Core: Base classes, Orchestrator, Planner, audit trail |
-| Phase 3 | ⏳ Pending | Image Processing: FLUX integration, Editor agent, protected regions |
-| Phase 4 | ⏳ Pending | Evaluation Loop: Qwen3.5 integration, Critic, Refiner agents |
-| Phase 5 | ⏳ Pending | Polish & Testing: Error handling, logging, tests, documentation |
-| Phase 6 | ⏳ Optional | Frontend: Streamlit interface |
-
-## License
-
-Apache 2.0

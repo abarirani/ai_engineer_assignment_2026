@@ -92,9 +92,6 @@ class VariantResult(BaseModel):
         ..., description="Quality evaluation score"
     )
     iterations: int = Field(..., ge=1, description="Number of iterations performed")
-    audit_trail: List[Dict[str, Any]] = Field(
-        ..., description="Detailed audit trail for this variant"
-    )
 
 
 class JobResult(BaseModel):
@@ -107,9 +104,6 @@ class JobResult(BaseModel):
     )
     variants: List[VariantResult] = Field(
         default=[], description="List of generated variants"
-    )
-    audit_trail: List[Dict[str, Any]] = Field(
-        ..., description="Complete workflow audit trail"
     )
     created_at: datetime = Field(..., description="Job creation timestamp")
     completed_at: Optional[datetime] = Field(
