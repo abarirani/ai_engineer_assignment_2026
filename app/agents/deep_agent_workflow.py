@@ -353,7 +353,7 @@ class DeepAgentWorkflow:
         Returns:
             System prompt string.
         """
-        prompt_path = Path(__file__).parent / "prompts" / "deep_agent_system_prompt.md"
+        prompt_path = Path(settings.prompts.deep_agent_system)
         return prompt_path.read_text()
 
     def _build_user_message(self, job: Dict[str, Any]) -> str:
@@ -385,7 +385,7 @@ class DeepAgentWorkflow:
             )
             brand_guidelines_text = "\n".join(filter(None, brand_guidelines_text))
 
-        template_path = Path(__file__).parent / "prompts" / "deep_agent_user_message.jinja2"
+        template_path = Path(settings.prompts.deep_agent_user_message)
         env = Environment(loader=FileSystemLoader(str(template_path.parent)))
         template = env.get_template(template_path.name)
         return template.render(

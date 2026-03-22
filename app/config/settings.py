@@ -144,13 +144,13 @@ class CORSSettings(BaseSettings):
 class PromptsSettings(BaseSettings):
     """Prompts settings."""
 
-    llm_agent_system: str = Field(
-        default="app/prompts/llm_agent_system.md",
-        description="Path to LLM agent system prompt markdown file",
+    deep_agent_system: str = Field(
+        default="app/agents/prompts/deep_agent_system_prompt.md",
+        description="Path to Deep Agent system prompt markdown file",
     )
-    user_message: str = Field(
-        default="app/prompts/user_message.md",
-        description="Path to user message template markdown file",
+    deep_agent_user_message: str = Field(
+        default="app/agents/prompts/deep_agent_user_message.jinja2",
+        description="Path to Deep Agent user message template jinja2 file",
     )
 
 

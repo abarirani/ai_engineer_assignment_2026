@@ -56,8 +56,8 @@ cors:
 
 # Prompts
 prompts:
-  llm_agent_system: "app/prompts/llm_agent_system.md"
-  user_message: "app/prompts/user_message.md"
+  deep_agent_system: "app/agents/prompts/deep_agent_system_prompt.md"
+  deep_agent_user_message: "app/agents/prompts/deep_agent_user_message.jinja2"
 
 # Image Editing Configuration
 image_editing:
