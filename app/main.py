@@ -13,6 +13,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.endpoints import router as api_router
 from app.config.settings import settings
 from app.observability import init_observability
+from app.services.llm.strategy import LLMStrategy
+from app.services.llm.strategy_factory import LLMStrategyFactory
+from app.services.workflow_service import get_workflow_service
 
 # Configure logging
 logging.basicConfig(
@@ -40,6 +43,25 @@ async def lifespan(app: FastAPI):
     # Initialize OpenTelemetry observability
     init_observability()
     logger.info("OpenTelemetry tracing initialized")
+
+    # Initialize LLM strategy and Deep Agent workflow if enabled
+    if settings.llm.enabled and settings.llm.api_key:
+        # Use factory to create the appropriate LLM strategy based on provider setting
+        llm_strategy: LLMStrategy = LLMStrategyFactory.create_strategy(settings.llm)
+
+        # Validate the strategy configuration
+        if not llm_strategy.validate_configuration():
+            logger.warning("LLM strategy configuration validation failed")
+            logger.info("LLM strategy disabled - workflow service not initialized")
+        else:
+            # Initialize workflow service with LLM strategy
+            get_workflow_service(llm_strategy)
+            logger.info(
+                f"LLM strategy initialized: {settings.llm.provider} ({settings.llm.model_name})"
+            )
+            logger.info("Deep Agent workflow initialized")
+    else:
+        logger.info("LLM strategy disabled - workflow service not initialized")
 
     logger.info("Application startup complete")
 

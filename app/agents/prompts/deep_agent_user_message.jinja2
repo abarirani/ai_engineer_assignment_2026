@@ -1,0 +1,13 @@
+Process the following image editing task:
+
+Input Image: {{ image_path }}
+
+Recommendations:
+{{ recommendations_text }}
+
+{% if brand_guidelines_text %}
+{{ brand_guidelines_text }}
+{% endif %}
+
+Generate variants for each recommendation.
+Return the results in a structured format with recommendation_id, variant_path, and evaluation_score for each variant.

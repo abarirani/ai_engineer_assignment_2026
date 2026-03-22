@@ -32,9 +32,11 @@ logging:
   level: "INFO"
 
 # LLM Configuration
+# Available providers: openai_compatible
+# To enable LLM, set enabled: true and provide an api_key
 llm:
   enabled: false
-  provider: "openai_compatible"
+  provider: "openai_compatible"  # Options: openai_compatible
   api_key: ""
   base_url: "http://localhost:11434/v1"
   model_name: "gpt-4o"
