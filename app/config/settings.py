@@ -115,6 +115,19 @@ class LoggingSettings(BaseSettings):
     level: str = Field(default="INFO", description="Logging level")
 
 
+class LLMSettings(BaseSettings):
+    """LLM settings."""
+
+    enabled: bool = Field(default=False, description="Whether LLM is enabled")
+    provider: str = Field(default="openai_compatible", description="LLM provider type")
+    api_key: str = Field(default="", description="API key for LLM provider")
+    base_url: str = Field(
+        default="http://localhost:11434/v1", description="Base URL for LLM API"
+    )
+    model_name: str = Field(default="gpt-4o", description="Model name to use")
+    temperature: float = Field(default=0.7, description="Temperature for sampling")
+
+
 class CORSSettings(BaseSettings):
     """CORS settings."""
 
@@ -126,6 +139,45 @@ class CORSSettings(BaseSettings):
     )
     allow_methods: List[str] = Field(default=["*"], description="Allowed HTTP methods")
     allow_headers: List[str] = Field(default=["*"], description="Allowed HTTP headers")
+
+
+class PromptsSettings(BaseSettings):
+    """Prompts settings."""
+
+    llm_agent_system: str = Field(
+        default="app/prompts/llm_agent_system.md",
+        description="Path to LLM agent system prompt markdown file",
+    )
+    user_message: str = Field(
+        default="app/prompts/user_message.md",
+        description="Path to user message template markdown file",
+    )
+
+
+class ImageEditingSettings(BaseSettings):
+    """Image editing settings."""
+
+    enabled: bool = Field(
+        default=True, description="Whether image editing is enabled"
+    )
+    strategy: str = Field(
+        default="klein", description="Editing strategy type (e.g., 'klein')"
+    )
+    model_path: str = Field(
+        default="black-forest-labs/FLUX.2-klein-4B",
+        description="Path to the image editing model",
+    )
+    device: str = Field(
+        default="auto",
+        description="Device to use for inference ('auto', 'cuda', 'cpu')",
+    )
+    enable_cpu_offload: bool = Field(
+        default=True, description="Enable CPU offloading for VRAM savings"
+    )
+    dtype: str = Field(
+        default="bfloat16",
+        description="Data type for model weights ('bfloat16', 'float16', 'float32')",
+    )
 
 
 class Settings(BaseSettings):
@@ -140,7 +192,10 @@ class Settings(BaseSettings):
     storage: StorageSettings = Field(default_factory=StorageSettings)
     processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
+    llm: LLMSettings = Field(default_factory=LLMSettings)
     cors: CORSSettings = Field(default_factory=CORSSettings)
+    prompts: PromptsSettings = Field(default_factory=PromptsSettings)
+    image_editing: ImageEditingSettings = Field(default_factory=ImageEditingSettings)
 
     @classmethod
     def settings_customise_sources(

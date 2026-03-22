@@ -31,6 +31,15 @@ processing:
 logging:
   level: "INFO"
 
+# LLM Configuration
+llm:
+  enabled: false
+  provider: "openai_compatible"
+  api_key: ""
+  base_url: "http://localhost:11434/v1"
+  model_name: "gpt-4o"
+  temperature: 0.7
+
 # CORS
 cors:
   allow_credentials: true
@@ -43,3 +52,17 @@ cors:
   allow_headers:
     - Content-Type
     - Authorization
+
+# Prompts
+prompts:
+  llm_agent_system: "app/prompts/llm_agent_system.md"
+  user_message: "app/prompts/user_message.md"
+
+# Image Editing Configuration
+image_editing:
+  enabled: true
+  strategy: "klein"
+  model_path: "black-forest-labs/FLUX.2-klein-4B"
+  device: "auto"
+  enable_cpu_offload: true
+  dtype: "bfloat16"
