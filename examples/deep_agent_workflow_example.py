@@ -7,9 +7,16 @@ image variants based on recommendations and brand guidelines.
 """
 
 import asyncio
-
+import logging
+from app.config.settings import settings
 from app.agents.deep_agent_workflow import DeepAgentWorkflow
 from app.models.schemas import BrandGuidelines, ProcessRequest, Recommendation
+
+# Configure logging
+logging.basicConfig(
+    level=getattr(logging, settings.logging.level),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 
 
 async def main():

@@ -11,6 +11,8 @@ Key simplifications:
 - Filesystem-based context management instead of TypedDict state schemas
 """
 
+import os
+import time
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -128,8 +130,6 @@ def execute_edit(
         Dictionary with edit results including success status,
         image path, and any error messages.
     """
-    import os
-    import time
 
     priority = max(1, min(5, priority))
     parameters = _select_parameters(priority)
@@ -331,7 +331,7 @@ class DeepAgentWorkflow:
                 evaluate_variant,
             ],
             system_prompt=system_prompt,
-            model=self._llm_strategy.get_langchain_model(),
+            model=self._llm_strategy.get_llm(),
         )
 
         logger.info(f"Executing Deep Agent workflow for job {job_id}")

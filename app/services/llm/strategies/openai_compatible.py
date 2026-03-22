@@ -32,7 +32,6 @@ class OpenAICompatibleStrategy(LLMStrategy):
         if self._llm_instance is None:
             llm_config = self._settings.llm
             self._llm_instance = ChatOpenAI(
-                api_key=llm_config.api_key,
                 base_url=llm_config.base_url,
                 model_name=llm_config.model_name,
                 temperature=llm_config.temperature,
