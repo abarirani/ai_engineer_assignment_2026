@@ -9,66 +9,35 @@ from app.config.settings import settings
 from app.services.image_editing.editor import ImageEditor
 from app.services.image_editing.parameters import EditParameters
 from app.services.image_editing.strategy_factory import ImageEditingStrategyFactory
+from app.services.evaluation.strategy_factory import EvaluationStrategyFactory
 
 logger = logging.getLogger(__name__)
 
 
-def _select_parameters(priority: int) -> EditParameters:
-    """Select editing parameters based on priority level.
-
-    Args:
-        priority: Task priority level (1-5).
-
-    Returns:
-        EditParameters configured for the priority level.
-    """
-    priority_map = {
-        1: EditParameters(
-            num_inference_steps=20,
-            guidance_scale=3.5,
-            seed=None,
-        ),
-        2: EditParameters(
-            num_inference_steps=25,
-            guidance_scale=4.0,
-            seed=None,
-        ),
-        3: EditParameters(
-            num_inference_steps=30,
-            guidance_scale=4.5,
-            seed=None,
-        ),
-        4: EditParameters(
-            num_inference_steps=40,
-            guidance_scale=5.0,
-            seed=None,
-        ),
-        5: EditParameters(
-            num_inference_steps=50,
-            guidance_scale=7.5,
-            seed=None,
-        ),
-    }
-    return priority_map.get(priority, priority_map[3])
-
-
-def execute_edit(prompt: str, image_path: str, priority: int = 1) -> Dict[str, Any]:
+def execute_edit(prompt: str, image_path: str) -> Dict[str, Any]:
     """Execute an image edit.
 
-    This tool performs the actual image editing operation using the
-    provided prompt and parameters derived from the priority level.
+    WHEN TO USE THIS TOOL:
+    - When you need to modify an existing image based on recommendations
+    - After receiving user instructions to change, enhance, or transform an image
+    - When the user requests specific visual changes (e.g., "make brighter",
+    "change background", "add elements")
 
     Args:
-        prompt: The editing prompt.
-        image_path: Path to the input image.
+        prompt: A clear, descriptive recommendation specifying the desired image edit.
+            The recommendation should be specific and actionable.
+
+        image_path: Path to the input image file.
 
     Returns:
-        Dictionary with edit results including success status,
-        image path, and any error messages.
+        Dict[str, Any]: A dictionary containing the edit results with the following structure:
+            {
+                "success": bool,           # True if edit completed successfully
+                "image_path": str | None,  # Path to the edited image (in "output/" directory)
+                "error": str | None,       # Error message if success is False
+                "metadata": Dict           # Additional metadata about the edit operation
+            }
     """
-
-    priority = max(1, min(5, priority))
-    parameters = _select_parameters(priority)
 
     # Generate output path in the output directory
     output_dir = "output"
@@ -82,7 +51,7 @@ def execute_edit(prompt: str, image_path: str, priority: int = 1) -> Dict[str, A
         # Get strategy from factory based on configuration
         strategy = ImageEditingStrategyFactory.create_strategy(settings.image_editing)
         editor = ImageEditor(strategy)
-        result = editor.edit(image, prompt, parameters, output_path=output_path)
+        result = editor.edit(image, prompt, EditParameters(), output_path=output_path)
 
         return {
             "success": result.success,
@@ -100,37 +69,43 @@ def execute_edit(prompt: str, image_path: str, priority: int = 1) -> Dict[str, A
         }
 
 
-def evaluate_variant(
-    variant_path: str, recommendation: str, brand_guidelines: Dict[str, Any]
-) -> Dict[str, Any]:
-    """Evaluate a variant's quality and brand compliance.
+def evaluate_variant(prompt: str, variant_path: str) -> str | Dict[str, Any]:
+    """Evaluate an edited image variant against brand guidelines and requirements.
 
-    This tool evaluates how well the generated variant matches the
-    recommendation and adheres to brand guidelines.
+    WHEN TO USE THIS TOOL:
+    - When you need to verify that an edited image meets specific brand guidelines,
+      design requirements, or quality standards
+    - Before presenting a final image to a user, to ensure it meets expectations
 
     Args:
+        prompt: A comprehensive evaluation prompt that provides all context needed
+            for the multimodal LLM critic to assess the image. This prompt should include:
+            - Brand guidelines (colors, style, tone)
+            - Original edit request or recommendations
         variant_path: Path to the generated variant image.
-        recommendation: The original recommendation.
-        brand_guidelines: Brand constraints to check against.
 
     Returns:
-        Dictionary with evaluation score and feedback.
+        str: On success, returns the multimodal LLM critic's evaluation as a string.
+             This typically contains a score and detailed feedback about how well the
+             image meets the specified criteria.
+
+        Dict[str, Any]: On failure, returns an error dictionary with structure:
+            {
+                "success": False,
+                "score": 0.0,
+                "feedback": "Error message describing what went wrong"
+            }
     """
     try:
+        # Verify the image exists and is valid
         Image.open(variant_path).verify()
-        score = 0.85
 
-        feedback_parts = ["## Variant Evaluation", f"Score: {score:.2f}"]
+        # Get strategy from settings
+        evaluator = EvaluationStrategyFactory.create_strategy(settings.evaluation)
+        result = evaluator.evaluate(variant_path, prompt)
 
-        if brand_guidelines:
-            feedback_parts.append("")
-            feedback_parts.append("## Brand Compliance Check")
-            feedback_parts.append("Variant adheres to brand guidelines.")
-
-        return {
-            "score": score,
-            "feedback": "\n".join(feedback_parts),
-        }
+        return result
     except Exception as e:
-        logger.error(f"Evaluation failed: {e}")
-        return {"score": 0.0, "feedback": f"Evaluation failed: {e}"}
+        error_message = f"Evaluation failed: {e}"
+        logger.error(error_message, exc_info=True)
+        return {"success": False, "score": 0.0, "feedback": error_message}

@@ -178,6 +178,28 @@ class ImageEditingSettings(BaseSettings):
     )
 
 
+class EvaluationSettings(BaseSettings):
+    """Evaluation settings for multimodal LLM-based evaluation."""
+
+    enabled: bool = Field(default=False, description="Whether evaluation is enabled")
+    provider: str = Field(
+        default="openai_compatible",
+        description="LLM provider type for evaluation (e.g., 'openai_compatible')",
+    )
+    base_url: str = Field(
+        default="http://localhost:11434/v1",
+        description="Base URL for evaluation LLM API",
+    )
+    model_name: str = Field(
+        default="gpt-4o",
+        description="Model name for evaluation (must be vision-capable)",
+    )
+    temperature: float = Field(
+        default=0.7,
+        description="Temperature for evaluation LLM sampling",
+    )
+
+
 class SubagentConfig(BaseSettings):
     """Configuration for a single subagent."""
 
@@ -249,6 +271,7 @@ class Settings(BaseSettings):
     cors: CORSSettings = Field(default_factory=CORSSettings)
     prompts: PromptsSettings = Field(default_factory=PromptsSettings)
     image_editing: ImageEditingSettings = Field(default_factory=ImageEditingSettings)
+    evaluation: EvaluationSettings = Field(default_factory=EvaluationSettings)
     subagents: SubagentsSettings = Field(default_factory=SubagentsSettings)
 
     @classmethod

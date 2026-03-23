@@ -59,6 +59,14 @@ prompts:
   deep_agent_system: "app/agents/prompts/deep_agent_system_prompt.md"
   deep_agent_user_message: "app/agents/prompts/deep_agent_user_message.jinja2"
 
+# Evaluation Configuration
+evaluation:
+  enabled: false
+  provider: "openai_compatible"  # Options: openai_compatible
+  base_url: "http://localhost:7878/v1"
+  model_name: "Qwen3.5-27B-Q4_K_M"
+  temperature: 0.7
+
 subagents:
   planner:
     description: >
