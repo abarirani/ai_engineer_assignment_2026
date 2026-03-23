@@ -19,7 +19,7 @@ from app.models.schemas import (
     ProcessRequest,
     ProcessResponse,
 )
-from app.services import WorkflowService
+from app.services.workflow_service import get_workflow_service
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +28,8 @@ router = APIRouter()
 # In-memory job storage (replace with Redis/database in production)
 jobs: Dict[str, Dict] = {}
 
-# Initialize the workflow service
-workflow_service = WorkflowService()
+# Get the workflow service (initialized in main.py)
+workflow_service = get_workflow_service()
 
 
 def generate_job_id() -> str:
