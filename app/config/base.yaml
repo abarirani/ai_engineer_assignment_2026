@@ -37,8 +37,8 @@ logging:
 llm:
   enabled: false
   provider: "openai_compatible"  # Options: openai_compatible
-  base_url: "http://localhost:7777/v1"
-  model_name: "Qwen3.5-35B-A3B-UD-Q4_K_M (CPU)"
+  base_url: "http://localhost:7878/v1"
+  model_name: "Qwen3.5-27B-Q4_K_M"
   temperature: 0.7
 
 # CORS
@@ -58,6 +58,100 @@ cors:
 prompts:
   deep_agent_system: "app/agents/prompts/deep_agent_system_prompt.md"
   deep_agent_user_message: "app/agents/prompts/deep_agent_user_message.jinja2"
+
+# Evaluation Configuration
+evaluation:
+  enabled: false
+  provider: "openai_compatible"  # Options: openai_compatible
+  base_url: "http://localhost:7878/v1"
+  model_name: "Qwen3.5-27B-Q4_K_M"
+  temperature: 0.7
+
+subagents:
+  planner:
+    description: >
+      Analyzes visual recommendations and decomposes them into actionable
+      sub-tasks. Selects appropriate tools and parameters for image editing.
+    model: ""
+    system_prompt: |
+      You are a Planner Agent for image editing workflows.
+      
+      ## Your Responsibilities
+      1. Analyze the visual recommendation
+      2. Cross-reference with brand guidelines
+      3. Decompose into atomic editing operations
+      4. Select appropriate tools and parameters
+      
+      ## Output Format
+      Return a structured plan with:
+      - Task decomposition
+      - Tool selection rationale
+      - Parameter recommendations
+      - Priority ordering
+    tools: []
+
+  editor:
+    description: >
+      ALWAYS use this first to edit images based on visual recommendations.
+    model: ""
+    system_prompt: |
+      You are an expert image editing assistant specialized in applying visual recommendations to images. ALWAYS use an image editing model to achieve this.
+
+      ## Workflow
+
+      1. Craft a prompt for the `execute_edit` toolt based on the user's input
+      2. Edit the image using the `execute_edit` tool
+
+      Always respect brand guidelines when processing recommendations.
+      
+      ## Tools
+      - execute_edit(prompt, image_path, priority)
+    tools:
+      - execute_edit
+
+  critic:
+    description: >
+      Evaluates generated variants against recommendations and brand guidelines.
+      Provides scoring and feedback for refinement.
+    model: ""
+    system_prompt: |
+      You are a Critic Agent for image editing workflows.
+      
+      ## Your Responsibilities
+      1. Evaluate variant against original recommendation
+      2. Check brand guideline compliance
+      3. Provide numerical score (0.0 - 1.0)
+      4. Give actionable feedback for improvement
+      
+      ## Scoring Criteria
+      - Recommendation adherence: 50%
+      - Brand compliance: 30%
+      - Visual quality: 20%
+      
+      ## Tools
+      - evaluate_variant(variant_path, recommendation, brand_guidelines)
+    tools:
+      - evaluate_variant
+
+  refiner:
+    description: >
+      Analyzes critic feedback and suggests prompt/parameter adjustments.
+      Generates refined plans for retry attempts.
+    model: ""
+    system_prompt: |
+      You are a Refiner Agent for image editing workflows.
+      
+      ## Your Responsibilities
+      1. Analyze critic feedback
+      2. Identify root causes of low scores
+      3. Adjust prompts for better recommendation adherence
+      4. Modify parameters for improved quality
+      
+      ## Adjustment Strategies
+      - Increase guidance_scale for brand compliance
+      - Refine prompt specificity for recommendation adherence
+      - Adjust inference_steps for quality vs speed tradeoff
+    tools: []
 
 # Image Editing Configuration
 image_editing:

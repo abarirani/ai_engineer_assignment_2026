@@ -4,7 +4,7 @@ from typing import Any
 
 from langchain_openai import ChatOpenAI
 
-from app.config.settings import get_settings
+from app.config.settings import settings
 from app.services.llm.strategy import LLMStrategy
 
 
@@ -17,7 +17,7 @@ class OpenAICompatibleStrategy(LLMStrategy):
 
     def __init__(self):
         """Initialize the OpenAI-compatible LLM strategy."""
-        self._settings = get_settings()
+        self._settings = settings.llm
         self._llm_instance: Any = None
 
     def get_llm(self) -> ChatOpenAI:
@@ -30,7 +30,7 @@ class OpenAICompatibleStrategy(LLMStrategy):
             ChatOpenAI: Configured ChatOpenAI client instance.
         """
         if self._llm_instance is None:
-            llm_config = self._settings.llm
+            llm_config = self._settings
             self._llm_instance = ChatOpenAI(
                 base_url=llm_config.base_url,
                 model_name=llm_config.model_name,

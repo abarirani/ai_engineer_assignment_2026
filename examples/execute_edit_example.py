@@ -21,40 +21,6 @@ def main():
     )
     print(f"Result: {result}")
 
-    # Example 2: Edit with higher priority (better quality, slower)
-    print("\nExample 2: Edit with priority 5 (highest quality)")
-    result = execute_edit(
-        prompt="Add a professional gradient background",
-        image_path=image_path,
-        priority=5,
-    )
-    print(f"Result: {result}")
-
-    # Example 3: Edit with lower priority (faster, lower quality)
-    print("\nExample 3: Edit with priority 1 (fastest)")
-    result = execute_edit(
-        prompt="Slightly increase contrast",
-        image_path=image_path,
-        priority=1,
-    )
-    print(f"Result: {result}")
-
-    # Example 4: Handling the result
-    print("\nExample 4: Proper result handling")
-    result = execute_edit(
-        prompt="Make the text more prominent",
-        image_path=image_path,
-        priority=3,
-    )
-
-    if result["success"]:
-        print("Edit successful!")
-        print(f"Output image saved to: {result['image_path']}")
-        if result["metadata"]:
-            print(f"Metadata: {result['metadata']}")
-    else:
-        print(f"Edit failed: {result['error']}")
-
 
 if __name__ == "__main__":
     main()
