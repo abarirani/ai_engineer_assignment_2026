@@ -157,9 +157,7 @@ class PromptsSettings(BaseSettings):
 class ImageEditingSettings(BaseSettings):
     """Image editing settings."""
 
-    enabled: bool = Field(
-        default=True, description="Whether image editing is enabled"
-    )
+    enabled: bool = Field(default=True, description="Whether image editing is enabled")
     strategy: str = Field(
         default="klein", description="Editing strategy type (e.g., 'klein')"
     )
@@ -180,6 +178,61 @@ class ImageEditingSettings(BaseSettings):
     )
 
 
+class SubagentConfig(BaseSettings):
+    """Configuration for a single subagent."""
+
+    description: str = Field(
+        default="",
+        description="Description of the subagent's role and responsibilities",
+    )
+    model: str = Field(
+        default="anthropic:claude-3-5-sonnet-20241022",
+        description="Model to use for this subagent",
+    )
+    system_prompt: str = Field(
+        default="",
+        description="System prompt for the subagent",
+    )
+    tools: List[str] = Field(
+        default_factory=list,
+        description="List of tools available to this subagent",
+    )
+
+
+class SubagentsSettings(BaseSettings):
+    """Subagents configuration that converts to list format for deepagents library."""
+
+    planner: SubagentConfig = Field(
+        default_factory=SubagentConfig,
+        description="Planner agent configuration",
+    )
+    editor: SubagentConfig = Field(
+        default_factory=SubagentConfig,
+        description="Editor agent configuration",
+    )
+    critic: SubagentConfig = Field(
+        default_factory=SubagentConfig,
+        description="Critic agent configuration",
+    )
+    refiner: SubagentConfig = Field(
+        default_factory=SubagentConfig,
+        description="Refiner agent configuration",
+    )
+
+    def to_list(self) -> List[Dict[str, Any]]:
+        """Convert subagents to list format expected by create_deep_agent.
+
+        Returns:
+            List of subagent configuration dictionaries with name keys.
+        """
+        return [
+            {"name": "planner", **self.planner.model_dump()},
+            {"name": "editor", **self.editor.model_dump()},
+            {"name": "critic", **self.critic.model_dump()},
+            {"name": "refiner", **self.refiner.model_dump()},
+        ]
+
+
 class Settings(BaseSettings):
     """Application settings loaded from YAML configuration files.
 
@@ -196,6 +249,7 @@ class Settings(BaseSettings):
     cors: CORSSettings = Field(default_factory=CORSSettings)
     prompts: PromptsSettings = Field(default_factory=PromptsSettings)
     image_editing: ImageEditingSettings = Field(default_factory=ImageEditingSettings)
+    subagents: SubagentsSettings = Field(default_factory=SubagentsSettings)
 
     @classmethod
     def settings_customise_sources(
