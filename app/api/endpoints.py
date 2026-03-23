@@ -1,8 +1,8 @@
 """API endpoint definitions."""
 
+import os
 import logging
 import shutil
-import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Dict
@@ -20,6 +20,7 @@ from app.models.schemas import (
     ProcessResponse,
 )
 from app.services.workflow_service import get_workflow_service
+from app.utils import generate_unique_id
 
 logger = logging.getLogger(__name__)
 
@@ -32,15 +33,12 @@ jobs: Dict[str, Dict] = {}
 workflow_service = get_workflow_service()
 
 
-def generate_job_id() -> str:
-    """Generate a unique job ID."""
-    return str(uuid.uuid4())
-
-
-async def save_uploaded_file(file: UploadFile) -> str:
+async def save_job_inputs(job_id: str, file: UploadFile) -> str:
     """Save uploaded file to disk and return path."""
-    filename = f"{uuid.uuid4()}_{file.filename}"
-    file_path = Path(settings.upload_dir) / filename
+    input_dir = Path(settings.storage.input_dir) / job_id
+    os.makedirs(input_dir, exist_ok=True)
+    filename = f"{file.filename}"
+    file_path = input_dir / filename
 
     # Ensure upload directory exists
     file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -89,10 +87,10 @@ async def process_image(
         )
 
     # Generate job ID
-    job_id = generate_job_id()
+    job_id = generate_unique_id()
 
     # Save uploaded image
-    image_path = await save_uploaded_file(image)
+    image_path = await save_job_inputs(job_id, image)
     image_url = f"/api/v1/images/{Path(image_path).name}"
 
     # Create job record
