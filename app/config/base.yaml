@@ -111,8 +111,7 @@ subagents:
 
   critic:
     description: >
-      Evaluates generated variants against recommendations and brand guidelines.
-      Provides scoring and feedback for refinement.
+      Evaluates generated variants against recommendations and brand guidelines. Provides scoring and feedback for refinement.
     model: ""
     system_prompt: |
       You are a Critic Agent for image editing workflows.
@@ -135,8 +134,7 @@ subagents:
 
   refiner:
     description: >
-      Analyzes critic feedback and suggests prompt/parameter adjustments.
-      Generates refined plans for retry attempts.
+      Analyzes critic feedback and suggests prompt/parameter adjustments. Generates refined plans for retry attempts.
     model: ""
     system_prompt: |
       You are a Refiner Agent for image editing workflows.
@@ -156,7 +154,7 @@ subagents:
 # Image Editing Configuration
 image_editing:
   enabled: true
-  strategy: "klein"
+  strategy: "mock"
   model_path: "black-forest-labs/FLUX.2-klein-4B"
   device: "auto"
   enable_cpu_offload: true

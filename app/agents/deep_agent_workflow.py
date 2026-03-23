@@ -20,8 +20,12 @@ from jinja2 import Environment, FileSystemLoader
 from app.agents.orchestrator import create_orchestrator
 from app.config.settings import settings
 from app.services.llm.strategy_factory import LLMStrategyFactory
-from app.agents.tools import execute_edit, evaluate_variant  # noqa: F401
-from app.agents.reporting import generate_report
+from app.agents.tools import (  # noqa: F401
+    execute_edit,
+    evaluate_variant,
+    generate_report,
+)
+from app.agents.reporting import format_messages
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +80,7 @@ class DeepAgentWorkflow:
                 subagent["tools"][i] = globals()[tool]
 
         agent = create_orchestrator(
-            tools=[],
+            tools=[generate_report],
             system_prompt=system_prompt,
             subagents=subagents,
             model=self._llm_strategy.get_llm(),
@@ -85,11 +89,12 @@ class DeepAgentWorkflow:
         logger.info(f"Executing Deep Agent workflow for job {job_id}")
 
         # Invoke the agent
+        config = {"configurable": {"job_id": f"{job_id}"}}
         result = await agent.ainvoke(
-            {"messages": [{"role": "user", "content": user_message}]}
+            {"messages": [{"role": "user", "content": user_message}]}, config=config
         )
 
-        generate_report(result["messages"])
+        format_messages(result["messages"])
 
         # Format the result
         formatted_result = self._format_result(job_id, job, result)
@@ -119,29 +124,31 @@ class DeepAgentWorkflow:
         image_path = job["image_path"]
 
         recommendations_text = "\n".join(
-            f"- [{rec.priority}] {rec.text}" for rec in request.recommendations
+            f"- [{rec.type.value}] {rec.title}: {rec.description}"
+            for rec in request.recommendations
         )
 
         brand_guidelines_text = ""
         if request.brand_guidelines:
             bg = request.brand_guidelines
-            brand_guidelines_text = "\n".join(
-                [
-                    "Brand Guidelines:",
-                    (
-                        f"- Primary colors: {bg.primary_colors}"
-                        if bg.primary_colors
-                        else ""
-                    ),
-                    (
-                        f"- Avoid colors: {bg.do_not_use_colors}"
-                        if bg.do_not_use_colors
-                        else ""
-                    ),
-                ]
-                + [f"- {rule}" for rule in bg.additional_rules or []]
-            )
-            brand_guidelines_text = "\n".join(filter(None, brand_guidelines_text))
+            guidelines_parts = ["Brand Guidelines:"]
+
+            if bg.protected_regions:
+                guidelines_parts.append("Protected Regions:")
+                guidelines_parts.extend(
+                    f"- {region}" for region in bg.protected_regions
+                )
+
+            if bg.typography:
+                guidelines_parts.append(f"Typography: {bg.typography}")
+
+            if bg.aspect_ratio:
+                guidelines_parts.append(f"Aspect Ratio: {bg.aspect_ratio}")
+
+            if bg.brand_elements:
+                guidelines_parts.append(f"Brand Elements: {bg.brand_elements}")
+
+            brand_guidelines_text = "\n".join(guidelines_parts)
 
         template_path = Path(settings.prompts.deep_agent_user_message)
         env = Environment(loader=FileSystemLoader(str(template_path.parent)))

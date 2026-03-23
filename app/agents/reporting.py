@@ -41,7 +41,7 @@ def format_message_content(message):
     return "\n".join(parts)
 
 
-def generate_report(messages):
+def format_messages(messages):
     """Format and display a list of messages with Rich formatting."""
     for m in messages:
         msg_type = m.__class__.__name__.replace("Message", "")

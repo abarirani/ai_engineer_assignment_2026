@@ -17,40 +17,38 @@ class JobStatusEnum(str, Enum):
     CANCELLED = "cancelled"
 
 
+class RecommendationType(str, Enum):
+    """Types of visual recommendations."""
+
+    CONTRAST_SALIENCE = "contrast_salience"
+    COMPOSITION = "composition"
+    COLOUR_MOOD = "colour_mood"
+    COPY_MESSAGING = "copy_messaging"
+
+
 class Recommendation(BaseModel):
     """A single visual recommendation for the image."""
 
     id: str = Field(..., description="Unique identifier for the recommendation")
-    text: str = Field(..., description="Text description of the recommendation")
-    priority: int = Field(default=1, ge=1, le=5, description="Priority level (1-5)")
-    category: Optional[str] = Field(
-        default=None, description="Category of recommendation (e.g., color, layout)"
-    )
+    title: str = Field(..., description="Title/summary of the recommendation")
+    description: str = Field(..., description="Detailed description of the recommendation")
+    type: RecommendationType = Field(..., description="Type of recommendation")
 
 
 class BrandGuidelines(BaseModel):
     """Brand guidelines to respect during editing."""
 
-    primary_colors: Optional[List[str]] = Field(
-        default=None, description="Primary brand colors (hex codes)"
+    protected_regions: Optional[List[str]] = Field(
+        default=None, description="List of regions or elements that should not be modified"
     )
-    secondary_colors: Optional[List[str]] = Field(
-        default=None, description="Secondary brand colors (hex codes)"
+    typography: Optional[str] = Field(
+        default=None, description="Typography guidelines for text elements"
     )
-    fonts: Optional[List[str]] = Field(
-        default=None, description="Approved font families"
+    aspect_ratio: Optional[str] = Field(
+        default=None, description="Required aspect ratio to maintain"
     )
-    logo_url: Optional[str] = Field(
-        default=None, description="URL or path to brand logo"
-    )
-    protected_regions: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="Regions to protect from editing"
-    )
-    do_not_use_colors: Optional[List[str]] = Field(
-        default=None, description="Colors that should not be used"
-    )
-    additional_rules: Optional[List[str]] = Field(
-        default=None, description="Additional brand rules as text"
+    brand_elements: Optional[str] = Field(
+        default=None, description="Guidelines for brand elements visibility and placement"
     )
 
 

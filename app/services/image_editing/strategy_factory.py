@@ -9,6 +9,7 @@ from app.config.settings import ImageEditingSettings
 
 from .strategy import ImageEditingStrategy
 from .strategies.klein import KleinEditingStrategy
+from .strategies.mock import MockEditingStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class ImageEditingStrategyFactory:
 
     _strategies: Dict[str, Type[ImageEditingStrategy]] = {
         "klein": KleinEditingStrategy,
-        # Add more strategies here as they are implemented
+        "mock": MockEditingStrategy,
     }
 
     @classmethod
@@ -73,9 +74,7 @@ class ImageEditingStrategyFactory:
         return device_str
 
     @classmethod
-    def create_strategy(
-        cls, settings: ImageEditingSettings
-    ) -> ImageEditingStrategy:
+    def create_strategy(cls, settings: ImageEditingSettings) -> ImageEditingStrategy:
         """Create an editing strategy based on settings.
 
         This method instantiates the appropriate editing strategy class
@@ -100,12 +99,16 @@ class ImageEditingStrategyFactory:
 
         logger.info(f"Creating editing strategy: {settings.strategy}")
 
-        strategy = strategy_class(
-            model_path=settings.model_path,
-            device=cls._parse_device(settings.device),
-            dtype=cls._parse_dtype(settings.dtype),
-            enable_cpu_offload=settings.enable_cpu_offload,
-        )
+        # Handle mock strategy separately as it has different constructor parameters
+        if settings.strategy == "mock":
+            strategy = strategy_class()
+        else:
+            strategy = strategy_class(
+                model_path=settings.model_path,
+                device=cls._parse_device(settings.device),
+                dtype=cls._parse_dtype(settings.dtype),
+                enable_cpu_offload=settings.enable_cpu_offload,
+            )
 
         logger.info(f"Editing strategy '{settings.strategy}' created successfully")
         return strategy
