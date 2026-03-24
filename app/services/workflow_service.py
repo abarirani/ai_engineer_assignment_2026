@@ -88,16 +88,20 @@ class WorkflowService:
                 f"Processing job {job_id} with {len(job['request'].recommendations)} recommendations"
             )
 
-            result = await self._deep_agent_workflow.run_workflow(job_id, job)
+            status = await self._deep_agent_workflow.run_workflow(job_id, job)
 
             # Complete processing
             job["progress"] = 100
-            job["status"] = JobStatusEnum.COMPLETED
             job["completed_at"] = datetime.utcnow()
-            job["message"] = "Processing completed successfully"
-            job["result"] = result
 
-            logger.info(f"Job {job_id} completed successfully")
+            if status == "success":
+                job["status"] = JobStatusEnum.COMPLETED
+                job["message"] = "Processing completed successfully"
+                logger.info(f"Job {job_id} completed successfully")
+            else:
+                job["status"] = JobStatusEnum.FAILED
+                job["message"] = "Report validation failed"
+                logger.warning(f"Job {job_id} failed report validation")
 
         except Exception as e:
             logger.exception(f"Error processing job {job_id}: {e}")

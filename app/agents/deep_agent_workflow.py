@@ -46,24 +46,21 @@ class DeepAgentWorkflow:
         self._llm_strategy = LLMStrategyFactory.create_strategy(settings.llm)
         logger.info("DeepAgentWorkflow initialized")
 
-    async def run_workflow(self, job_id: str, job: Dict[str, Any]) -> Dict[str, Any]:
+    async def run_workflow(self, job_id: str, job: Dict[str, Any]) -> str:
         """Process a job using the Deep Agent.
 
         This method orchestrates the complete image editing workflow:
         1. Prepare the task description for the agent
         2. Invoke the Deep Agent with the task
         3. Format and return the results
+        4. Check if report.json contains valid non-empty JSON
 
         Args:
             job_id: Unique job identifier.
             job: Job data containing request and image path.
 
         Returns:
-            Workflow result dictionary containing:
-            - job_id: The job identifier
-            - status: Job completion status
-            - input_image_url: URL of the input image
-            - variants: List of generated variants with evaluation scores
+            "success" if report.json contains valid non-empty JSON, "failure" otherwise.
         """
         # Build the system prompt
         system_prompt = self._build_system_prompt()
@@ -94,10 +91,14 @@ class DeepAgentWorkflow:
             {"messages": [{"role": "user", "content": user_message}]}, config=config
         )
 
+        # Store results in the job folder
         self._generate_markdown_from_messages(result["messages"], job_id, settings.storage.output_dir)
+        self._store_result_json(result, job_id, settings.storage.output_dir)
 
         logger.info(f"Deep Agent workflow completed for job {job_id}")
-        return result
+
+        # Check if report.json contains valid non-empty JSON
+        return self._check_report_json(job_id, settings.storage.output_dir)
 
     def _build_system_prompt(self) -> str:
         """Build the system prompt for the Deep Agent.
@@ -223,3 +224,52 @@ class DeepAgentWorkflow:
         # Write to markdown file
         output_file = output_dir / "messages.md"
         output_file.write_text("\n".join(markdown_lines))
+
+    def _store_result_json(self, result: Dict[str, Any], job_id: str, output_dir: str):
+        """Store the agent result as JSON in the job folder.
+
+        Args:
+            result: The agent invocation result dictionary.
+            job_id: The job identifier used to create the output folder.
+            output_dir: Directory to store the JSON file.
+        """
+        output_dir = Path(output_dir) / job_id
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        output_file = output_dir / "result.json"
+        output_file.write_text(json.dumps(result, indent=2, default=str))
+
+    def _check_report_json(self, job_id: str, output_dir: str) -> str:
+        """Check if report.json contains valid non-empty JSON.
+
+        Args:
+            job_id: The job identifier used to locate the report file.
+            output_dir: Directory containing the job folder.
+
+        Returns:
+            "success" if report.json exists and contains valid non-empty JSON,
+            "failure" otherwise.
+        """
+        report_path = Path(output_dir) / job_id / "report.json"
+
+        if not report_path.exists():
+            logger.warning(f"report.json not found for job {job_id}")
+            return "failure"
+
+        try:
+            content = report_path.read_text()
+            if not content.strip():
+                logger.warning(f"report.json is empty for job {job_id}")
+                return "failure"
+
+            data = json.loads(content)
+            # Check if the JSON is non-empty (not just {} or [])
+            if not data:
+                logger.warning(f"report.json contains empty JSON for job {job_id}")
+                return "failure"
+
+            logger.info(f"report.json validation successful for job {job_id}")
+            return "success"
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in report.json for job {job_id}: {e}")
+            return "failure"
