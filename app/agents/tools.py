@@ -52,12 +52,15 @@ def execute_edit(prompt: str, image_path: str, runtime: ToolRuntime) -> Dict[str
         output_filename = f"edited_{runtime.tool_call_id}.png"
         output_path = os.path.join(output_dir, output_filename)
 
+        logger.debug(f"Editing {image_path} for job {job_id}.")
         image = Image.open(image_path).convert("RGB")
 
         # Get strategy from factory based on configuration
         strategy = ImageEditingStrategyFactory.create_strategy(settings.image_editing)
         editor = ImageEditor(strategy)
         result = editor.edit(image, prompt, EditParameters(), output_path=output_path)
+
+        logger.debug(f"Storing edited image {output_path} for job {job_id}.")
 
         return {
             "success": result.success,
@@ -156,8 +159,7 @@ def generate_report(
             }
     """
     try:
-        configurable = config.get("configurable", {})
-        job_id = configurable.get("job_id", "default_id")
+        job_id = config["configurable"]["job_id"]
         # Ensure output directory exists
         output_dir = Path(settings.storage.output_dir) / job_id
         os.makedirs(output_dir, exist_ok=True)
@@ -165,7 +167,11 @@ def generate_report(
 
         # Calculate summary statistics
         scores = [v.get("evaluation_score", 0) for v in variants]
-        best_variant = max(variants, key=lambda v: v.get("evaluation_score", 0)) if variants else None
+        best_variant = (
+            max(variants, key=lambda v: v.get("evaluation_score", 0))
+            if variants
+            else None
+        )
 
         report = {
             "generated_at": datetime.now().isoformat(),
@@ -174,21 +180,23 @@ def generate_report(
                 "total_variants": len(variants),
                 "average_score": sum(scores) / len(scores) if scores else 0.0,
                 "best_variant_path": best_variant.get("path") if best_variant else None,
-                "best_score": best_variant.get("evaluation_score") if best_variant else 0.0
-            }
+                "best_score": (
+                    best_variant.get("evaluation_score") if best_variant else 0.0
+                ),
+            },
         }
 
         # Write report to JSON file
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             json.dump(report, f, indent=2)
 
-        logger.info(f"Report generated successfully at {output_path}")
+        logger.info(f"Report generated successfully at {output_path} for job {job_id}.")
 
         return {
             "success": True,
             "report_path": output_path,
             "error": None,
-            "summary": report["summary"]
+            "summary": report["summary"],
         }
 
     except Exception as e:
@@ -198,5 +206,5 @@ def generate_report(
             "success": False,
             "report_path": None,
             "error": error_message,
-            "summary": {}
+            "summary": {},
         }
