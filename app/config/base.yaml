@@ -16,6 +16,10 @@ storage:
   upload_dir: "data/upload"
   output_dir: "data/output"
 
+# Database
+database:
+  path: "data/jobs.db"
+
 # Processing
 processing:
   max_file_size_mb: 10

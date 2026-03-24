@@ -2,14 +2,14 @@
 
 import json
 import logging
-from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import TYPE_CHECKING, Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, UploadFile, status
 from fastapi.responses import JSONResponse
 
 from app.config.settings import settings
+from app.models.database import JobDatabase
 from app.models.schemas import (
     JobResult,
     JobStatus,
@@ -17,18 +17,20 @@ from app.models.schemas import (
     ProcessRequest,
     ProcessResponse,
 )
-from app.services.workflow_service import get_workflow_service
 from app.utils import generate_unique_id, save_job_inputs
+
+if TYPE_CHECKING:
+    from app.services.workflow_service import WorkflowService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# TODO: In-memory job storage (replace with sqlite in production)
-jobs: Dict[str, Dict] = {}
+# Database instance (initialized in main.py)
+db: Optional[JobDatabase] = None
 
-# Get the workflow service (initialized in main.py)
-workflow_service = get_workflow_service()
+# Workflow service instance (initialized in main.py)
+workflow_service: Optional["WorkflowService"] = None
 
 
 @router.post(
@@ -112,21 +114,17 @@ async def process_image(
     )
     image_url = f"/api/v1/images/{Path(image_path).name}"
 
-    # Create job record
-    jobs[job_id] = {
-        "job_id": job_id,
-        "status": JobStatusEnum.PENDING,
-        "request": request,
-        "image_path": image_path,
-        "image_url": image_url,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-        "progress": 0,
-        "message": "Job queued for processing",
+    # Create job in database
+    request_dict = {
+        "recommendations": [r.dict() for r in request.recommendations],
+        "brand_guidelines": (
+            request.brand_guidelines.dict() if request.brand_guidelines else None
+        ),
     }
+    db.create_job(job_id, request_dict, image_path, image_url)
 
     # Schedule background processing
-    background_tasks.add_task(workflow_service.process_job, job_id, jobs)
+    background_tasks.add_task(workflow_service.process_job, job_id)
 
     logger.info(
         f"Job {job_id} created with {len(request.recommendations)} recommendations"
@@ -157,13 +155,12 @@ async def get_job_status(job_id: str) -> JobStatus:
     Raises:
         HTTPException: If job not found
     """
-    if job_id not in jobs:
+    job = db.get_job(job_id)
+    if not job:
         raise JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
             content={"detail": f"Job not found: {job_id}"},
         )
-
-    job = jobs[job_id]
 
     return JobStatus(
         job_id=job["job_id"],
@@ -195,13 +192,12 @@ async def get_job_result(job_id: str) -> JobResult:
     Raises:
         HTTPException: If job not found or not completed
     """
-    if job_id not in jobs:
+    job = db.get_job(job_id)
+    if not job:
         raise JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
             content={"detail": f"Job not found: {job_id}"},
         )
-
-    job = jobs[job_id]
 
     if job["status"] != JobStatusEnum.COMPLETED:
         raise JSONResponse(
@@ -211,11 +207,12 @@ async def get_job_result(job_id: str) -> JobResult:
             },
         )
 
-    result = job.get("result")
-    if not result:
-        raise JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": "Job completed but no result available"},
-        )
-
-    return JobResult(**result)
+    # Job completed - return success response
+    return JobResult(
+        job_id=job["job_id"],
+        status=job["status"],
+        input_image_url=job.get("image_url"),
+        variants=[],
+        created_at=job["created_at"],
+        completed_at=job["completed_at"],
+    )

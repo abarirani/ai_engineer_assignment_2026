@@ -109,6 +109,14 @@ class ProcessingSettings(BaseSettings):
     )
 
 
+class DatabaseSettings(BaseSettings):
+    """Database settings."""
+
+    path: str = Field(
+        default="data/jobs.db", description="Path to SQLite database file"
+    )
+
+
 class LoggingSettings(BaseSettings):
     """Logging settings."""
 
@@ -265,6 +273,7 @@ class Settings(BaseSettings):
     app: AppSettings = Field(default_factory=AppSettings)
     api: ApiSettings = Field(default_factory=ApiSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
+    database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)

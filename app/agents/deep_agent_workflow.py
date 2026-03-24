@@ -26,6 +26,7 @@ from app.agents.tools import (  # noqa: F401
     evaluate_variant,
     generate_report,
 )
+from app.models.schemas import ProcessRequest
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +93,9 @@ class DeepAgentWorkflow:
         )
 
         # Store results in the job folder
-        self._generate_markdown_from_messages(result["messages"], job_id, settings.storage.output_dir)
+        self._generate_markdown_from_messages(
+            result["messages"], job_id, settings.storage.output_dir
+        )
         self._store_result_json(result, job_id, settings.storage.output_dir)
 
         logger.info(f"Deep Agent workflow completed for job {job_id}")
@@ -118,7 +121,7 @@ class DeepAgentWorkflow:
         Returns:
             User message string.
         """
-        request = job["request"]
+        request = ProcessRequest.model_validate(job["request"])
         image_path = job["image_path"]
 
         recommendations_text = "\n".join(
@@ -165,6 +168,7 @@ class DeepAgentWorkflow:
             job_id: The job identifier used to create the output folder.
             output_dir: directory to store the markdown file.
         """
+
         def format_message_content(message):
             """Convert message content to displayable string."""
             parts = []

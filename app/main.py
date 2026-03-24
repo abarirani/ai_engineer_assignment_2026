@@ -14,6 +14,8 @@ from openinference.instrumentation.langchain import LangChainInstrumentor
 
 from app.api.endpoints import router as api_router
 from app.config.settings import settings
+from app.models.database import JobDatabase
+from app.services.workflow_service import get_workflow_service
 
 # Configure logging
 logging.basicConfig(
@@ -42,6 +44,21 @@ async def lifespan(app: FastAPI):
     # This must be done before any tracer provider is set
     LangChainInstrumentor().instrument()
     logger.info("LangChain instrumentation initialized")
+
+    # Initialize database
+    db = JobDatabase(settings.database.path)
+    logger.info(f"Database initialized at {settings.database.path}")
+
+    # Initialize workflow service with database
+    workflow_service = get_workflow_service(db)
+    logger.info("Workflow service initialized")
+
+    # Inject dependencies into endpoints module
+    import app.api.endpoints as endpoints_module
+
+    endpoints_module.db = db
+    endpoints_module.workflow_service = workflow_service
+    logger.info("Dependencies injected into endpoints module")
 
     logger.info("Application startup complete")
 
