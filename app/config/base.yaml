@@ -154,7 +154,7 @@ subagents:
 # Image Editing Configuration
 image_editing:
   enabled: true
-  strategy: "mock"
+  strategy: "klein"
   model_path: "black-forest-labs/FLUX.2-klein-4B"
   device: "auto"
   enable_cpu_offload: true
