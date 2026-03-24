@@ -201,6 +201,34 @@ class JobDatabase:
         """
         self.update_job_status(job_id, JobStatusEnum.FAILED, error=error)
 
+    def recover_stale_processing_jobs(self) -> int:
+        """Mark all jobs with 'processing' status as 'failed'.
+
+        This is used during server startup to recover from unexpected shutdowns.
+
+        Returns:
+            Number of jobs that were marked as failed.
+        """
+        with self.get_connection() as conn:
+            # Get all jobs with 'processing' status
+            cursor = conn.execute(
+                "SELECT id FROM jobs WHERE status = ?",
+                (JobStatusEnum.PROCESSING.value,),
+            )
+            stale_jobs = cursor.fetchall()
+
+            # Mark each as failed
+            error_message = "Job interrupted due to server restart"
+            count = 0
+            for job in stale_jobs:
+                job_id = job["id"]
+                self.update_job_status(
+                    job_id, JobStatusEnum.FAILED, error=error_message
+                )
+                count += 1
+
+            return count
+
     def _row_to_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
         """Convert database row to dictionary.
 

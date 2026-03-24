@@ -49,6 +49,15 @@ async def lifespan(app: FastAPI):
     db = JobDatabase(settings.database.path)
     logger.info(f"Database initialized at {settings.database.path}")
 
+    # Recover any stale processing jobs from unexpected shutdowns
+    recovered_count = db.recover_stale_processing_jobs()
+    if recovered_count > 0:
+        logger.warning(
+            f"Recovered {recovered_count} stale processing job(s) marked as failed"
+        )
+    else:
+        logger.info("No stale processing jobs found")
+
     # Initialize workflow service with database
     workflow_service = get_workflow_service(db)
     logger.info("Workflow service initialized")
