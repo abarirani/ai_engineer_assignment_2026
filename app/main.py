@@ -10,9 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from openinference.instrumentation.langchain import LangChainInstrumentor
+
 from app.api.endpoints import router as api_router
 from app.config.settings import settings
-from app.observability import init_observability
 
 # Configure logging
 logging.basicConfig(
@@ -37,9 +38,10 @@ async def lifespan(app: FastAPI):
     # Startup events
     logger.info(f"Starting {settings.app.name} v{settings.app.version}")
 
-    # Initialize OpenTelemetry observability
-    init_observability()
-    logger.info("OpenTelemetry tracing initialized")
+    # Initialize LangChain instrumentation for observability
+    # This must be done before any tracer provider is set
+    LangChainInstrumentor().instrument()
+    logger.info("LangChain instrumentation initialized")
 
     logger.info("Application startup complete")
 
