@@ -4,7 +4,7 @@
 # This script checks job status first, then retrieves results if completed
 
 API_BASE="http://localhost:5050/api/v1"
-JOB_ID="c133b980-5395-4c37-b81d-210da13d190c"
+JOB_ID="4a2e3e07-5e40-464f-8412-e5160d9ef9ed"
 
 # Colors for output
 RED='\033[0;31m'
