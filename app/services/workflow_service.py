@@ -12,11 +12,10 @@ The Deep Agents approach simplifies the workflow by:
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 from app.agents.deep_agent_workflow import DeepAgentWorkflow
 from app.models.schemas import JobStatusEnum
-from app.services.llm.strategy import LLMStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -34,73 +33,18 @@ class WorkflowService:
         _llm_strategy: The LLM strategy for model invocation.
     """
 
-    def __init__(self, llm_strategy: LLMStrategy) -> None:
+    def __init__(self) -> None:
         """Initialize the workflow service.
-
-        Args:
-            llm_strategy: The LLM strategy for model invocation.
-
-        Raises:
-            RuntimeError: If workflow initialization fails.
-        """
-        self._llm_strategy = llm_strategy
-        self._deep_agent_workflow: Optional[DeepAgentWorkflow] = None
-        self._initialize_workflow()
-
-    def _initialize_workflow(self) -> None:
-        """Initialize the Deep Agent workflow.
 
         Raises:
             RuntimeError: If workflow initialization fails.
         """
         try:
-            self._deep_agent_workflow = DeepAgentWorkflow(self._llm_strategy)
+            self._deep_agent_workflow = DeepAgentWorkflow()
             logger.info("Deep Agent workflow initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize Deep Agent workflow: {e}")
             self._deep_agent_workflow = None
-
-    @property
-    def is_ready(self) -> bool:
-        """Check if the workflow service is ready to execute workflows.
-
-        Returns:
-            True if the workflow is initialized and ready, False otherwise.
-        """
-        return self._deep_agent_workflow is not None
-
-    async def run_workflow(self, job_id: str, job: Dict[str, Any]) -> Dict[str, Any]:
-        """Run the Deep Agent workflow for a job.
-
-        This method:
-        1. Validates that the workflow is initialized
-        2. Invokes the Deep Agent asynchronously
-        3. Formats and returns the results
-
-        Args:
-            job_id: Unique job identifier.
-            job: Job data containing request and image path.
-
-        Returns:
-            Workflow result dictionary containing:
-            - job_id: The job identifier
-            - status: Job completion status
-            - input_image_url: URL of the input image
-            - variants: List of generated variants with evaluation scores
-
-        Raises:
-            RuntimeError: If the workflow is not initialized.
-        """
-        if self._deep_agent_workflow is None:
-            raise RuntimeError("Deep Agent workflow not initialized")
-
-        logger.info(f"Executing Deep Agent workflow for job {job_id}")
-
-        # Run the workflow using Deep Agent
-        result = await self._deep_agent_workflow.process_job(job_id, job)
-
-        logger.info(f"Deep Agent workflow completed for job {job_id}")
-        return result
 
     async def process_job(self, job_id: str, jobs: Dict[str, Dict]) -> None:
         """Background task to process a job using the Deep Agent workflow.
@@ -132,17 +76,7 @@ class WorkflowService:
                 f"Processing job {job_id} with {len(job['request'].recommendations)} recommendations"
             )
 
-            # Update progress
-            job["progress"] = 20
-            job["message"] = "Planning tasks with Deep Agent..."
-            job["updated_at"] = datetime.utcnow()
-
-            # Run the Deep Agent workflow
-            job["progress"] = 50
-            job["message"] = "Generating variants..."
-            job["updated_at"] = datetime.utcnow()
-
-            result = await self.run_workflow(job_id, job)
+            result = await self._deep_agent_workflow.process_job(job_id, job)
 
             # Complete processing
             job["progress"] = 100
@@ -164,7 +98,7 @@ class WorkflowService:
 _workflow_service: Optional[WorkflowService] = None
 
 
-def get_workflow_service(llm_strategy: Optional[LLMStrategy] = None) -> WorkflowService:
+def get_workflow_service() -> WorkflowService:
     """Get the singleton workflow service instance.
 
     Args:
@@ -175,6 +109,6 @@ def get_workflow_service(llm_strategy: Optional[LLMStrategy] = None) -> Workflow
         The singleton WorkflowService instance.
     """
     global _workflow_service
-    if _workflow_service is None and llm_strategy is not None:
-        _workflow_service = WorkflowService(llm_strategy)
+    if _workflow_service is None:
+        _workflow_service = WorkflowService()
     return _workflow_service

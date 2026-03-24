@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# In-memory job storage (replace with Redis/database in production)
+# TODO: In-memory job storage (replace with sqlite in production)
 jobs: Dict[str, Dict] = {}
 
 # Get the workflow service (initialized in main.py)
