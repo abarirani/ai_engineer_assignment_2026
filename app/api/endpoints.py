@@ -2,13 +2,10 @@
 
 import json
 import logging
-import os
-import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 
-import aiofiles
 from fastapi import APIRouter, BackgroundTasks, File, Form, UploadFile, status
 from fastapi.responses import JSONResponse
 
@@ -21,7 +18,7 @@ from app.models.schemas import (
     ProcessResponse,
 )
 from app.services.workflow_service import get_workflow_service
-from app.utils import generate_unique_id
+from app.utils import generate_unique_id, save_job_inputs
 
 logger = logging.getLogger(__name__)
 
@@ -32,22 +29,6 @@ jobs: Dict[str, Dict] = {}
 
 # Get the workflow service (initialized in main.py)
 workflow_service = get_workflow_service()
-
-
-async def save_job_inputs(job_id: str, file: UploadFile) -> str:
-    """Save uploaded file to disk and return path."""
-    upload_dir = Path(settings.storage.upload_dir) / job_id
-    os.makedirs(upload_dir, exist_ok=True)
-    filename = f"{file.filename}"
-    file_path = upload_dir / filename
-
-    # Ensure upload directory exists
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-
-    async with aiofiles.open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    return str(file_path)
 
 
 @router.post(
@@ -62,8 +43,12 @@ async def save_job_inputs(job_id: str, file: UploadFile) -> str:
 async def process_image(
     background_tasks: BackgroundTasks,
     image: UploadFile = File(..., description="Image file to process"),
-    recommendations: str = Form(..., description="JSON string of recommendations array"),
-    brand_guidelines: Optional[str] = Form(None, description="JSON string of brand guidelines"),
+    recommendations: str = Form(
+        ..., description="JSON string of recommendations array"
+    ),
+    brand_guidelines: Optional[str] = Form(
+        None, description="JSON string of brand guidelines"
+    ),
 ) -> ProcessResponse:
     """Process an image with visual recommendations.
 
@@ -118,7 +103,13 @@ async def process_image(
     job_id = generate_unique_id()
 
     # Save uploaded image
-    image_path = await save_job_inputs(job_id, image)
+    image_path = save_job_inputs(
+        job_id,
+        image,
+        settings.storage.upload_dir,
+        recommendations_data,
+        brand_guidelines_data,
+    )
     image_url = f"/api/v1/images/{Path(image_path).name}"
 
     # Create job record
