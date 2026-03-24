@@ -1,14 +1,15 @@
 """API endpoint definitions."""
 
-import os
+import json
 import logging
+import os
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 import aiofiles
-from fastapi import APIRouter, BackgroundTasks, File, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, File, Form, UploadFile, status
 from fastapi.responses import JSONResponse
 
 from app.config.settings import settings
@@ -35,10 +36,10 @@ workflow_service = get_workflow_service()
 
 async def save_job_inputs(job_id: str, file: UploadFile) -> str:
     """Save uploaded file to disk and return path."""
-    input_dir = Path(settings.storage.input_dir) / job_id
-    os.makedirs(input_dir, exist_ok=True)
+    upload_dir = Path(settings.storage.upload_dir) / job_id
+    os.makedirs(upload_dir, exist_ok=True)
     filename = f"{file.filename}"
-    file_path = input_dir / filename
+    file_path = upload_dir / filename
 
     # Ensure upload directory exists
     file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -60,14 +61,16 @@ async def save_job_inputs(job_id: str, file: UploadFile) -> str:
 )
 async def process_image(
     background_tasks: BackgroundTasks,
-    request: ProcessRequest,
     image: UploadFile = File(..., description="Image file to process"),
+    recommendations: str = Form(..., description="JSON string of recommendations array"),
+    brand_guidelines: Optional[str] = Form(None, description="JSON string of brand guidelines"),
 ) -> ProcessResponse:
     """Process an image with visual recommendations.
 
     Args:
-        request: Processing request with recommendations and brand guidelines
         image: Image file to process
+        recommendations: JSON string containing array of recommendations
+        brand_guidelines: Optional JSON string containing brand guidelines
 
     Returns:
         ProcessResponse with job ID for tracking
@@ -75,14 +78,39 @@ async def process_image(
     Raises:
         HTTPException: For invalid file types or sizes
     """
+    # Parse JSON form fields
+    try:
+        recommendations_data = json.loads(recommendations)
+    except json.JSONDecodeError as e:
+        raise JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"detail": f"Invalid JSON in recommendations: {str(e)}"},
+        )
+
+    brand_guidelines_data = None
+    if brand_guidelines:
+        try:
+            brand_guidelines_data = json.loads(brand_guidelines)
+        except json.JSONDecodeError as e:
+            raise JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"detail": f"Invalid JSON in brand_guidelines: {str(e)}"},
+            )
+
+    # Build ProcessRequest from parsed data
+    request = ProcessRequest(
+        recommendations=recommendations_data,
+        brand_guidelines=brand_guidelines_data,
+    )
+
     # Validate file type
     file_extension = Path(image.filename).suffix.lower()
-    if file_extension not in settings.allowed_file_types:
+    if file_extension not in settings.processing.allowed_file_types:
         raise JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
                 "detail": f"Invalid file type: {file_extension}. "
-                f"Allowed types: {', '.join(settings.allowed_file_types)}"
+                f"Allowed types: {', '.join(settings.processing.allowed_file_types)}"
             },
         )
 

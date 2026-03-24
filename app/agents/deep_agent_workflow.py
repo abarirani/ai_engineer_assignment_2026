@@ -46,7 +46,7 @@ class DeepAgentWorkflow:
         self._llm_strategy = LLMStrategyFactory.create_strategy(settings.llm)
         logger.info("DeepAgentWorkflow initialized")
 
-    async def process_job(self, job_id: str, job: Dict[str, Any]) -> Dict[str, Any]:
+    async def run_workflow(self, job_id: str, job: Dict[str, Any]) -> Dict[str, Any]:
         """Process a job using the Deep Agent.
 
         This method orchestrates the complete image editing workflow:

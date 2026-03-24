@@ -76,7 +76,7 @@ class WorkflowService:
                 f"Processing job {job_id} with {len(job['request'].recommendations)} recommendations"
             )
 
-            result = await self._deep_agent_workflow.process_job(job_id, job)
+            result = await self._deep_agent_workflow.run_workflow(job_id, job)
 
             # Complete processing
             job["progress"] = 100
@@ -100,10 +100,6 @@ _workflow_service: Optional[WorkflowService] = None
 
 def get_workflow_service() -> WorkflowService:
     """Get the singleton workflow service instance.
-
-    Args:
-        llm_strategy: Optional LLM strategy. If not provided, the existing
-            singleton instance is returned.
 
     Returns:
         The singleton WorkflowService instance.

@@ -61,7 +61,7 @@ async def main():
         "image_path": image_path,
     }
 
-    result = await workflow.process_job(job_id=job_id, job=job)
+    result = await workflow.run_workflow(job_id=job_id, job=job)
     print(f"Job ID: {result['job_id']}")
     print(f"Status: {result['status']}")
     print(f"Number of variants generated: {len(result['variants'])}")

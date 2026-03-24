@@ -13,7 +13,7 @@ api:
 
 # Storage
 storage:
-  upload_dir: "data/input"
+  upload_dir: "data/upload"
   output_dir: "data/output"
 
 # Processing
