@@ -16,6 +16,7 @@ from app.models.schemas import (
     JobStatusEnum,
     ProcessRequest,
     ProcessResponse,
+    VariantResult,
 )
 from app.utils import generate_unique_id, save_job_inputs
 
@@ -207,12 +208,38 @@ async def get_job_result(job_id: str) -> JobResult:
             },
         )
 
-    # Job completed - return success response
+    # Read report.json
+    report_content = None
+    report_path = Path(settings.storage.output_dir) / job_id / "report.json"
+    if report_path.exists():
+        report_content = json.loads(report_path.read_text())
+
+    # Read messages.md
+    messages_content = None
+    messages_path = Path(settings.storage.output_dir) / job_id / "messages.md"
+    if messages_path.exists():
+        messages_content = messages_path.read_text()
+
+    # Parse variants from report if available
+    variants = []
+    if report_content and "variants" in report_content:
+        for v in report_content["variants"]:
+            variants.append(
+                VariantResult(
+                    recommendation_id=v.get("recommendation_id", ""),
+                    variant_url=v.get("path", ""),
+                    evaluation_score=v.get("evaluation_score", 0.0),
+                    iterations=v.get("iterations", 1),
+                )
+            )
+
     return JobResult(
         job_id=job["job_id"],
         status=job["status"],
         input_image_url=job.get("image_url"),
-        variants=[],
+        variants=variants,
+        report_content=report_content,
+        messages_content=messages_content,
         created_at=job["created_at"],
         completed_at=job["completed_at"],
     )

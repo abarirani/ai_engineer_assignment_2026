@@ -31,7 +31,9 @@ class Recommendation(BaseModel):
 
     id: str = Field(..., description="Unique identifier for the recommendation")
     title: str = Field(..., description="Title/summary of the recommendation")
-    description: str = Field(..., description="Detailed description of the recommendation")
+    description: str = Field(
+        ..., description="Detailed description of the recommendation"
+    )
     type: RecommendationType = Field(..., description="Type of recommendation")
 
 
@@ -39,7 +41,8 @@ class BrandGuidelines(BaseModel):
     """Brand guidelines to respect during editing."""
 
     protected_regions: Optional[List[str]] = Field(
-        default=None, description="List of regions or elements that should not be modified"
+        default=None,
+        description="List of regions or elements that should not be modified",
     )
     typography: Optional[str] = Field(
         default=None, description="Typography guidelines for text elements"
@@ -48,7 +51,8 @@ class BrandGuidelines(BaseModel):
         default=None, description="Required aspect ratio to maintain"
     )
     brand_elements: Optional[str] = Field(
-        default=None, description="Guidelines for brand elements visibility and placement"
+        default=None,
+        description="Guidelines for brand elements visibility and placement",
     )
 
 
@@ -86,8 +90,8 @@ class VariantResult(BaseModel):
 
     recommendation_id: str = Field(..., description="Original recommendation ID")
     variant_url: str = Field(..., description="URL to the generated variant")
-    evaluation_score: confloat(ge=0, le=1) = Field(
-        ..., description="Quality evaluation score"
+    evaluation_score: confloat(ge=0, le=10) = Field(
+        ..., description="Quality evaluation score (0-10 scale)"
     )
     iterations: int = Field(..., ge=1, description="Number of iterations performed")
 
@@ -102,6 +106,12 @@ class JobResult(BaseModel):
     )
     variants: List[VariantResult] = Field(
         default=[], description="List of generated variants"
+    )
+    report_content: Optional[Dict[str, Any]] = Field(
+        default=None, description="Content of report.json"
+    )
+    messages_content: Optional[str] = Field(
+        default=None, description="Content of messages.md"
     )
     created_at: datetime = Field(..., description="Job creation timestamp")
     completed_at: Optional[datetime] = Field(
