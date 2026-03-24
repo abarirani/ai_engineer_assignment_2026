@@ -115,8 +115,8 @@ class WorkflowService:
 
         finally:
             # Flush traces to file and shutdown observability
-            flush_job_traces()
-            shutdown_job_observability()
+            flush_job_traces(job_id)
+            shutdown_job_observability(job_id)
             logger.info(f"Observability traces flushed for job {job_id}")
 
 

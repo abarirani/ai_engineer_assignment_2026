@@ -42,22 +42,59 @@ class FileSpanExporter(SpanExporter):
 
     Attributes:
         file_path: Path to the output file for trace data.
+        job_id: Job ID filter - only spans with matching job.id attribute are exported.
         _spans: List of collected spans before export.
     """
 
-    def __init__(self, file_path: str):
-        """Initialize the file exporter with an output path.
+    def __init__(self, file_path: str, job_id: str):
+        """Initialize the file exporter with an output path and job filter.
 
         Args:
             file_path: Path to the JSON file where traces will be written.
+            job_id: Job ID to filter spans by (only spans with matching job.id attribute).
         """
         self.file_path = Path(file_path)
+        self.job_id = job_id
         self._spans: list[dict] = []
         # Ensure parent directory exists
         self.file_path.parent.mkdir(parents=True, exist_ok=True)
 
+    def _extract_job_id_from_span(self, span: ReadableSpan) -> Optional[str]:
+        """Extract job_id from span attributes.
+
+        The job_id can be in two places:
+        1. Directly as 'job_id' attribute
+        2. Inside 'metadata' attribute as JSON string with 'job_id' key
+
+        Args:
+            span: The span to extract job_id from.
+
+        Returns:
+            The job_id if found, None otherwise.
+        """
+        attributes = dict(span.attributes) if span.attributes else {}
+
+        # Check for direct job_id attribute
+        if "job_id" in attributes:
+            return str(attributes["job_id"])
+
+        # Check for job_id inside metadata JSON
+        if "metadata" in attributes:
+            try:
+                metadata_str = attributes["metadata"]
+                if isinstance(metadata_str, str):
+                    metadata_dict = json.loads(metadata_str)
+                    if "job_id" in metadata_dict:
+                        return str(metadata_dict["job_id"])
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        return None
+
     def export(self, spans: list[ReadableSpan]) -> SpanExportResult:
         """Export a batch of spans to the internal list.
+
+        Only exports spans that match this exporter's job_id filter.
 
         Args:
             spans: List of spans to export.
@@ -66,8 +103,11 @@ class FileSpanExporter(SpanExporter):
             SpanExportResult.SUCCESS if export was successful.
         """
         for span in spans:
-            span_data = self._span_to_dict(span)
-            self._spans.append(span_data)
+            # Filter: only export spans for this job
+            span_job_id = self._extract_job_id_from_span(span)
+            if span_job_id == self.job_id:
+                span_data = self._span_to_dict(span)
+                self._spans.append(span_data)
         return SpanExportResult.SUCCESS
 
     def _span_to_dict(self, span: ReadableSpan) -> dict:
@@ -147,16 +187,19 @@ class FileSpanExporter(SpanExporter):
         self.force_flush()
 
 
-# Global tracer provider for job-specific tracing
-_job_tracer_provider: Optional[TracerProvider] = None
-_job_file_exporter: Optional[FileSpanExporter] = None
+# Global shared tracer provider (initialized once, shared across all jobs)
+_global_tracer_provider: Optional[TracerProvider] = None
+
+# Track job-specific exporters for cleanup
+_job_exporters: dict[str, FileSpanExporter] = {}
 
 
 def init_observability_for_job(job_id: str, output_dir: str = "data/output") -> None:
     """Initialize OpenTelemetry tracing for a specific job with file export.
 
-    This function creates a job-specific tracer that exports traces to a JSON file
-    in the same directory as the job output.
+    This function adds a job-specific exporter to the global tracer provider.
+    Each exporter filters spans by job.id attribute, ensuring trace isolation
+    even when multiple jobs run concurrently.
 
     Args:
         job_id: Unique identifier for the job.
@@ -164,59 +207,51 @@ def init_observability_for_job(job_id: str, output_dir: str = "data/output") -> 
 
     The traces will be written to: {output_dir}/{job_id}/traces.json
     """
-    global _job_tracer_provider, _job_file_exporter
+    global _global_tracer_provider
 
-    # Clean up previous job's tracer if exists
-    if _job_tracer_provider is not None:
-        _job_tracer_provider.shutdown()
+    # Create shared provider once (if not already initialized)
+    if _global_tracer_provider is None:
+        _global_tracer_provider = TracerProvider(
+            resource=Resource.create({"service.name": "image-editing-agent"})
+        )
+        trace.set_tracer_provider(_global_tracer_provider)
 
     # Create job-specific output path
     job_output_dir = Path(output_dir) / job_id
     trace_file_path = job_output_dir / "traces.json"
 
-    # Create file exporter
-    _job_file_exporter = FileSpanExporter(str(trace_file_path))
+    # Create job-specific exporter that filters by job_id
+    exporter = FileSpanExporter(str(trace_file_path), job_id)
+    _job_exporters[job_id] = exporter
 
-    # Create tracer provider with service metadata
-    _job_tracer_provider = TracerProvider(
-        resource=Resource.create(
-            {
-                "service.name": "image-editing-agent",
-                "job.id": job_id,
-            }
-        )
-    )
-
-    # Create span processor with file exporter
-    span_processor = SimpleSpanProcessor(_job_file_exporter)
-    _job_tracer_provider.add_span_processor(span_processor)
-
-    # Set as global tracer provider
-    # Note: LangChain instrumentation must have been initialized at app startup
-    trace.set_tracer_provider(_job_tracer_provider)
+    # Add exporter to the global provider
+    span_processor = SimpleSpanProcessor(exporter)
+    _global_tracer_provider.add_span_processor(span_processor)
 
 
-def flush_job_traces() -> bool:
-    """Flush all collected traces for the current job to file.
+def flush_job_traces(job_id: str) -> bool:
+    """Flush all collected traces for a specific job to file.
+
+    Args:
+        job_id: The job ID whose traces should be flushed.
 
     Returns:
         True if flush was successful, False otherwise.
     """
-    global _job_file_exporter
-    if _job_file_exporter is not None:
-        return _job_file_exporter.force_flush()
+    if job_id in _job_exporters:
+        return _job_exporters[job_id].force_flush()
     return False
 
 
-def shutdown_job_observability() -> None:
-    """Shutdown the job-specific observability and clean up resources.
+def shutdown_job_observability(job_id: str) -> None:
+    """Shutdown observability for a specific job and clean up resources.
 
     This should be called after job processing is complete to ensure
     all traces are flushed to disk.
-    """
-    global _job_tracer_provider, _job_file_exporter
 
-    if _job_tracer_provider is not None:
-        _job_tracer_provider.shutdown()
-        _job_tracer_provider = None
-        _job_file_exporter = None
+    Args:
+        job_id: The job ID whose observability should be shut down.
+    """
+    if job_id in _job_exporters:
+        _job_exporters[job_id].force_flush()
+        del _job_exporters[job_id]
