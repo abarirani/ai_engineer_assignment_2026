@@ -12,6 +12,7 @@ Key simplifications:
 """
 
 import logging
+import json
 from pathlib import Path
 from typing import Any, Dict
 
@@ -25,7 +26,6 @@ from app.agents.tools import (  # noqa: F401
     evaluate_variant,
     generate_report,
 )
-from app.agents.reporting import format_messages
 
 logger = logging.getLogger(__name__)
 
@@ -94,13 +94,10 @@ class DeepAgentWorkflow:
             {"messages": [{"role": "user", "content": user_message}]}, config=config
         )
 
-        format_messages(result["messages"])
-
-        # Format the result
-        formatted_result = self._format_result(job_id, job, result)
+        self._generate_markdown_from_messages(result["messages"], job_id, settings.storage.output_dir)
 
         logger.info(f"Deep Agent workflow completed for job {job_id}")
-        return formatted_result
+        return result
 
     def _build_system_prompt(self) -> str:
         """Build the system prompt for the Deep Agent.
@@ -159,38 +156,70 @@ class DeepAgentWorkflow:
             brand_guidelines_text=brand_guidelines_text,
         )
 
-    def _format_result(
-        self, job_id: str, job: Dict[str, Any], agent_result: Any
-    ) -> Dict[str, Any]:
-        """Format the agent result into the expected response format.
+    def _generate_markdown_from_messages(self, messages, job_id: str, output_dir: str):
+        """Format messages and write to a markdown file in the output job folder.
 
         Args:
-            job_id: Unique job identifier.
-            job: Original job data.
-            agent_result: Result from the Deep Agent.
-
-        Returns:
-            Formatted result dictionary.
+            messages: List of messages to format.
+            job_id: The job identifier used to create the output folder.
+            output_dir: directory to store the markdown file.
         """
-        # Extract variants from agent result
-        # The agent should return structured data with variants
-        variants = []
+        def format_message_content(message):
+            """Convert message content to displayable string."""
+            parts = []
+            tool_calls_processed = False
 
-        # For now, return a basic structure
-        # In production, you'd parse the agent's output more carefully
-        for rec in job["request"].recommendations:
-            variants.append(
-                {
-                    "recommendation_id": rec.id,
-                    "variant_url": "",  # Would be populated from agent output
-                    "evaluation_score": 0.0,
-                    "iterations": 1,
-                }
-            )
+            # Handle main content
+            if isinstance(message.content, str):
+                parts.append(message.content)
+            elif isinstance(message.content, list):
+                # Handle complex content like tool calls (Anthropic format)
+                for item in message.content:
+                    if item.get("type") == "text":
+                        parts.append(item["text"])
+                    elif item.get("type") == "tool_use":
+                        parts.append(f"\n🔧 Tool Call: {item['name']}")
+                        parts.append(f"   Args: {json.dumps(item['input'], indent=2)}")
+                        parts.append(f"   ID: {item.get('id', 'N/A')}")
+                        tool_calls_processed = True
+            else:
+                parts.append(str(message.content))
 
-        return {
-            "job_id": job_id,
-            "status": "completed",
-            "input_image_url": job.get("image_url"),
-            "variants": variants,
-        }
+            # Handle tool calls attached to the message (OpenAI format) - only if not already processed
+            if (
+                not tool_calls_processed
+                and hasattr(message, "tool_calls")
+                and message.tool_calls
+            ):
+                for tool_call in message.tool_calls:
+                    parts.append(f"\n🔧 Tool Call: {tool_call['name']}")
+                    parts.append(f"   Args: {json.dumps(tool_call['args'], indent=2)}")
+                    parts.append(f"   ID: {tool_call['id']}")
+
+            return "\n".join(parts)
+
+        output_dir = Path(output_dir) / job_id
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        markdown_lines = []
+
+        for m in messages:
+            msg_type = m.__class__.__name__.replace("Message", "")
+            content = format_message_content(m)
+
+            # Map message types to markdown headers
+            if msg_type == "Human":
+                markdown_lines.append("## 🧑 Human\n")
+            elif msg_type == "Ai":
+                markdown_lines.append("## 🤖 Assistant\n")
+            elif msg_type == "Tool":
+                markdown_lines.append("## 🔧 Tool Output\n")
+            else:
+                markdown_lines.append(f"## 📝 {msg_type}\n")
+
+            markdown_lines.append(content)
+            markdown_lines.append("\n---\n")
+
+        # Write to markdown file
+        output_file = output_dir / "messages.md"
+        output_file.write_text("\n".join(markdown_lines))
