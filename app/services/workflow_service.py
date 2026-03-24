@@ -16,6 +16,12 @@ from typing import Dict, Optional
 
 from app.agents.deep_agent_workflow import DeepAgentWorkflow
 from app.models.schemas import JobStatusEnum
+from app.observability import (
+    init_observability_for_job,
+    flush_job_traces,
+    shutdown_job_observability,
+)
+from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +56,12 @@ class WorkflowService:
         """Background task to process a job using the Deep Agent workflow.
 
         This method orchestrates the complete job processing lifecycle:
-        1. Updates job status to PROCESSING
-        2. Runs the Deep Agent workflow
-        3. Updates job status to COMPLETED or FAILED
-        4. Stores the result in the job record
+        1. Initializes job-specific observability
+        2. Updates job status to PROCESSING
+        3. Runs the Deep Agent workflow
+        4. Flushes traces to file
+        5. Updates job status to COMPLETED or FAILED
+        6. Stores the result in the job record
 
         Args:
             job_id: Unique job identifier.
@@ -64,6 +72,10 @@ class WorkflowService:
         if job_id not in jobs:
             logger.error(f"Job not found: {job_id}")
             return
+
+        # Initialize job-specific observability
+        init_observability_for_job(job_id, settings.storage.output_dir)
+        logger.info(f"Observability initialized for job {job_id}")
 
         job = jobs[job_id]
         job["status"] = JobStatusEnum.PROCESSING
@@ -92,6 +104,12 @@ class WorkflowService:
             job["status"] = JobStatusEnum.FAILED
             job["error"] = str(e)
             job["updated_at"] = datetime.utcnow()
+
+        finally:
+            # Flush traces to file and shutdown observability
+            flush_job_traces()
+            shutdown_job_observability()
+            logger.info(f"Observability traces flushed for job {job_id}")
 
 
 # Singleton instance for use across the application
