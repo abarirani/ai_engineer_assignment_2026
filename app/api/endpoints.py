@@ -1,14 +1,11 @@
 """API endpoint definitions."""
 
+import json
 import logging
-import shutil
-import uuid
-from datetime import datetime
 from pathlib import Path
-from typing import Dict
+from typing import Optional
 
-import aiofiles
-from fastapi import APIRouter, BackgroundTasks, File, UploadFile, status
+from fastapi import APIRouter, Request, BackgroundTasks, File, Form, UploadFile, status
 from fastapi.responses import JSONResponse
 
 from app.config.settings import settings
@@ -18,37 +15,12 @@ from app.models.schemas import (
     JobStatusEnum,
     ProcessRequest,
     ProcessResponse,
+    VariantResult,
 )
-from app.services.workflow_service import get_workflow_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# In-memory job storage (replace with Redis/database in production)
-jobs: Dict[str, Dict] = {}
-
-# Get the workflow service (initialized in main.py)
-workflow_service = get_workflow_service()
-
-
-def generate_job_id() -> str:
-    """Generate a unique job ID."""
-    return str(uuid.uuid4())
-
-
-async def save_uploaded_file(file: UploadFile) -> str:
-    """Save uploaded file to disk and return path."""
-    filename = f"{uuid.uuid4()}_{file.filename}"
-    file_path = Path(settings.upload_dir) / filename
-
-    # Ensure upload directory exists
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-
-    async with aiofiles.open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    return str(file_path)
 
 
 @router.post(
@@ -61,15 +33,22 @@ async def save_uploaded_file(file: UploadFile) -> str:
     "respecting brand guidelines.",
 )
 async def process_image(
+    request: Request,
     background_tasks: BackgroundTasks,
-    request: ProcessRequest,
     image: UploadFile = File(..., description="Image file to process"),
+    recommendations: str = Form(
+        ..., description="JSON string of recommendations array"
+    ),
+    brand_guidelines: Optional[str] = Form(
+        ..., description="JSON string of brand guidelines"
+    ),
 ) -> ProcessResponse:
     """Process an image with visual recommendations.
 
     Args:
-        request: Processing request with recommendations and brand guidelines
         image: Image file to process
+        recommendations: JSON string containing array of recommendations
+        brand_guidelines: Optional JSON string containing brand guidelines
 
     Returns:
         ProcessResponse with job ID for tracking
@@ -77,42 +56,51 @@ async def process_image(
     Raises:
         HTTPException: For invalid file types or sizes
     """
+    # Parse JSON form fields
+    try:
+        recommendations_data = json.loads(recommendations)
+    except json.JSONDecodeError as e:
+        raise JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"detail": f"Invalid JSON in recommendations: {str(e)}"},
+        )
+
+    try:
+        brand_guidelines_data = json.loads(brand_guidelines)
+    except json.JSONDecodeError as e:
+        raise JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"detail": f"Invalid JSON in brand_guidelines: {str(e)}"},
+        )
+
     # Validate file type
     file_extension = Path(image.filename).suffix.lower()
-    if file_extension not in settings.allowed_file_types:
+    if file_extension not in settings.processing.allowed_file_types:
         raise JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
                 "detail": f"Invalid file type: {file_extension}. "
-                f"Allowed types: {', '.join(settings.allowed_file_types)}"
+                f"Allowed types: {', '.join(settings.processing.allowed_file_types)}"
             },
         )
 
-    # Generate job ID
-    job_id = generate_job_id()
+    # Build ProcessRequest from parsed data
+    process_request = ProcessRequest(
+        recommendations=recommendations_data,
+        brand_guidelines=brand_guidelines_data,
+    )
 
-    # Save uploaded image
-    image_path = await save_uploaded_file(image)
-    image_url = f"/api/v1/images/{Path(image_path).name}"
+    workflow_service = request.app.state.workflow_service
 
-    # Create job record
-    jobs[job_id] = {
-        "job_id": job_id,
-        "status": JobStatusEnum.PENDING,
-        "request": request,
-        "image_path": image_path,
-        "image_url": image_url,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-        "progress": 0,
-        "message": "Job queued for processing",
-    }
-
-    # Schedule background processing
-    background_tasks.add_task(workflow_service.process_job, job_id, jobs)
+    # Create a new job and schedule background processing
+    job_id = await workflow_service.create_job(
+        image=image,
+        process_request=process_request,
+    )
+    background_tasks.add_task(workflow_service.process_job, job_id)
 
     logger.info(
-        f"Job {job_id} created with {len(request.recommendations)} recommendations"
+        f"Job {job_id} created with {len(process_request.recommendations)} recommendations"
     )
 
     return ProcessResponse(
@@ -128,7 +116,7 @@ async def process_image(
     summary="Get job status",
     description="Check the current status of a processing job.",
 )
-async def get_job_status(job_id: str) -> JobStatus:
+async def get_job_status(request: Request, job_id: str) -> JobStatus:
     """Get the status of a processing job.
 
     Args:
@@ -140,13 +128,13 @@ async def get_job_status(job_id: str) -> JobStatus:
     Raises:
         HTTPException: If job not found
     """
-    if job_id not in jobs:
+    workflow_service = request.app.state.workflow_service
+    job = await workflow_service.get_job_status(job_id)
+    if not job:
         raise JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
             content={"detail": f"Job not found: {job_id}"},
         )
-
-    job = jobs[job_id]
 
     return JobStatus(
         job_id=job["job_id"],
@@ -166,7 +154,7 @@ async def get_job_status(job_id: str) -> JobStatus:
     description="Retrieve the complete result of a processing job including "
     "generated variants and audit trail.",
 )
-async def get_job_result(job_id: str) -> JobResult:
+async def get_job_result(request: Request, job_id: str) -> JobResult:
     """Get the result of a completed job.
 
     Args:
@@ -178,13 +166,13 @@ async def get_job_result(job_id: str) -> JobResult:
     Raises:
         HTTPException: If job not found or not completed
     """
-    if job_id not in jobs:
+    workflow_service = request.app.state.workflow_service
+    job = await workflow_service.get_job_status(job_id)
+    if not job:
         raise JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
             content={"detail": f"Job not found: {job_id}"},
         )
-
-    job = jobs[job_id]
 
     if job["status"] != JobStatusEnum.COMPLETED:
         raise JSONResponse(
@@ -194,11 +182,38 @@ async def get_job_result(job_id: str) -> JobResult:
             },
         )
 
-    result = job.get("result")
-    if not result:
-        raise JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": "Job completed but no result available"},
-        )
+    # Read report.json
+    report_content = None
+    report_path = Path(settings.storage.output_dir) / job_id / "report.json"
+    if report_path.exists():
+        report_content = json.loads(report_path.read_text())
 
-    return JobResult(**result)
+    # Read messages.md
+    messages_content = None
+    messages_path = Path(settings.storage.output_dir) / job_id / "messages.md"
+    if messages_path.exists():
+        messages_content = messages_path.read_text()
+
+    # Parse variants from report if available
+    variants = []
+    if report_content and "variants" in report_content:
+        for v in report_content["variants"]:
+            variants.append(
+                VariantResult(
+                    recommendation_id=v.get("recommendation_id", ""),
+                    variant_url=v.get("path", ""),
+                    evaluation_score=v.get("evaluation_score", 0.0),
+                    iterations=v.get("iterations", 1),
+                )
+            )
+
+    return JobResult(
+        job_id=job["job_id"],
+        status=job["status"],
+        input_image_url=job.get("image_url"),
+        variants=variants,
+        report_content=report_content,
+        messages_content=messages_content,
+        created_at=job["created_at"],
+        completed_at=job["completed_at"],
+    )

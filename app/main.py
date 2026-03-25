@@ -10,12 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from openinference.instrumentation.langchain import LangChainInstrumentor
+
+from app.services.workflow_service import WorkflowService
 from app.api.endpoints import router as api_router
 from app.config.settings import settings
-from app.observability import init_observability
-from app.services.llm.strategy import LLMStrategy
-from app.services.llm.strategy_factory import LLMStrategyFactory
-from app.services.workflow_service import get_workflow_service
+from app.observability import flush_all_traces_to_file
 
 # Configure logging
 logging.basicConfig(
@@ -40,28 +40,12 @@ async def lifespan(app: FastAPI):
     # Startup events
     logger.info(f"Starting {settings.app.name} v{settings.app.version}")
 
-    # Initialize OpenTelemetry observability
-    init_observability()
-    logger.info("OpenTelemetry tracing initialized")
+    # Initialize LangChain instrumentation for observability
+    # This must be done before any tracer provider is set
+    LangChainInstrumentor().instrument()
+    logger.info("LangChain instrumentation initialized")
 
-    # Initialize LLM strategy and Deep Agent workflow if enabled
-    if settings.llm.enabled and settings.llm.api_key:
-        # Use factory to create the appropriate LLM strategy based on provider setting
-        llm_strategy: LLMStrategy = LLMStrategyFactory.create_strategy(settings.llm)
-
-        # Validate the strategy configuration
-        if not llm_strategy.validate_configuration():
-            logger.warning("LLM strategy configuration validation failed")
-            logger.info("LLM strategy disabled - workflow service not initialized")
-        else:
-            # Initialize workflow service with LLM strategy
-            get_workflow_service(llm_strategy)
-            logger.info(
-                f"LLM strategy initialized: {settings.llm.provider} ({settings.llm.model_name})"
-            )
-            logger.info("Deep Agent workflow initialized")
-    else:
-        logger.info("LLM strategy disabled - workflow service not initialized")
+    app.state.workflow_service = WorkflowService()
 
     logger.info("Application startup complete")
 
@@ -69,7 +53,14 @@ async def lifespan(app: FastAPI):
 
     # Shutdown events
     logger.info("Application shutdown initiated")
-    # Add cleanup tasks here (e.g., close database connections, cleanup temp files)
+
+    # Flush all OpenTelemetry traces to a timestamped file
+    trace_file = flush_all_traces_to_file()
+    if trace_file:
+        logger.info(f"All traces flushed to {trace_file}")
+    else:
+        logger.info("No traces to flush")
+
     logger.info("Application shutdown complete")
 
 

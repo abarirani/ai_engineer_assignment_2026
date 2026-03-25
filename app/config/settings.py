@@ -107,6 +107,17 @@ class ProcessingSettings(BaseSettings):
     processing_timeout_seconds: int = Field(
         default=300, description="Processing timeout in seconds"
     )
+    max_concurrent_jobs: int = Field(
+        default=1, description="Maximum number of concurrent jobs allowed"
+    )
+
+
+class DatabaseSettings(BaseSettings):
+    """Database settings."""
+
+    path: str = Field(
+        default="data/jobs.db", description="Path to SQLite database file"
+    )
 
 
 class LoggingSettings(BaseSettings):
@@ -265,6 +276,7 @@ class Settings(BaseSettings):
     app: AppSettings = Field(default_factory=AppSettings)
     api: ApiSettings = Field(default_factory=ApiSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
+    database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
