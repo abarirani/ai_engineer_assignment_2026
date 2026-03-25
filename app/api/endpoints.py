@@ -40,7 +40,7 @@ async def process_image(
         ..., description="JSON string of recommendations array"
     ),
     brand_guidelines: Optional[str] = Form(
-        None, description="JSON string of brand guidelines"
+        ..., description="JSON string of brand guidelines"
     ),
 ) -> ProcessResponse:
     """Process an image with visual recommendations.
@@ -65,21 +65,13 @@ async def process_image(
             content={"detail": f"Invalid JSON in recommendations: {str(e)}"},
         )
 
-    brand_guidelines_data = None
-    if brand_guidelines:
-        try:
-            brand_guidelines_data = json.loads(brand_guidelines)
-        except json.JSONDecodeError as e:
-            raise JSONResponse(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                content={"detail": f"Invalid JSON in brand_guidelines: {str(e)}"},
-            )
-
-    # Build ProcessRequest from parsed data
-    request = ProcessRequest(
-        recommendations=recommendations_data,
-        brand_guidelines=brand_guidelines_data,
-    )
+    try:
+        brand_guidelines_data = json.loads(brand_guidelines)
+    except json.JSONDecodeError as e:
+        raise JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"detail": f"Invalid JSON in brand_guidelines: {str(e)}"},
+        )
 
     # Validate file type
     file_extension = Path(image.filename).suffix.lower()
@@ -92,18 +84,24 @@ async def process_image(
             },
         )
 
+    # Build ProcessRequest from parsed data
+    process_request = ProcessRequest(
+        recommendations=recommendations_data,
+        brand_guidelines=brand_guidelines_data,
+    )
+
     workflow_service = request.app.state.workflow_service
+
     # Create a new job and schedule background processing
     job_id = await workflow_service.create_job(
         image=image,
-        recommendations_data=recommendations,
-        brand_guidelines_data=brand_guidelines,
-        request=request,
+        process_request=process_request,
     )
     background_tasks.add_task(workflow_service.process_job, job_id)
 
     logger.info(
-        f"Job {job_id} created with {len(request.recommendations)} recommendations"
+        f"Job {job_id} created with {len(process_request.recommendations)} recommendations "
+        f"and {len(process_request.brand_guidelines)} brand guidelines"
     )
 
     return ProcessResponse(

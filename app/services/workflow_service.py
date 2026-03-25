@@ -76,16 +76,12 @@ class WorkflowService:
     async def create_job(
         self,
         image: UploadFile,
-        recommendations_data,
-        brand_guidelines_data,
-        request: ProcessRequest,
+        process_request: ProcessRequest,
     ) -> str:
         """Create a new job.
 
         Args:
             image (UploadFile): _description_
-            recommendations_data (_type_): _description_
-            brand_guidelines_data (_type_): _description_
             request (ProcessRequest): _description_
 
         Returns:
@@ -99,16 +95,18 @@ class WorkflowService:
             job_id,
             image,
             settings.storage.upload_dir,
-            recommendations_data,
-            brand_guidelines_data,
+            process_request.recommendations,
+            process_request.brand_guidelines,
         )
         image_url = f"/api/v1/images/{Path(image_path).name}"
 
         # Create job in database
         request_dict = {
-            "recommendations": [r.dict() for r in request.recommendations],
+            "recommendations": [r.dict() for r in process_request.recommendations],
             "brand_guidelines": (
-                request.brand_guidelines.dict() if request.brand_guidelines else None
+                process_request.brand_guidelines.dict()
+                if process_request.brand_guidelines
+                else None
             ),
         }
         self._db.create_job(job_id, request_dict, image_path, image_url)
