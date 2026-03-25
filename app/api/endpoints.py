@@ -100,8 +100,7 @@ async def process_image(
     background_tasks.add_task(workflow_service.process_job, job_id)
 
     logger.info(
-        f"Job {job_id} created with {len(process_request.recommendations)} recommendations "
-        f"and {len(process_request.brand_guidelines)} brand guidelines"
+        f"Job {job_id} created with {len(process_request.recommendations)} recommendations"
     )
 
     return ProcessResponse(

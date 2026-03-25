@@ -91,13 +91,7 @@ class WorkflowService:
         job_id = generate_unique_id()
 
         # Save uploaded image
-        image_path = save_job_inputs(
-            job_id,
-            image,
-            settings.storage.upload_dir,
-            process_request.recommendations,
-            process_request.brand_guidelines,
-        )
+        image_path = save_job_inputs(job_id, image, settings.storage.upload_dir)
         image_url = f"/api/v1/images/{Path(image_path).name}"
 
         # Create job in database
