@@ -45,7 +45,7 @@ class DeepAgentWorkflow:
             llm_strategy: The LLM strategy for model invocation.
         """
         self._llm_strategy = LLMStrategyFactory.create_strategy(settings.llm)
-        logger.info("DeepAgentWorkflow initialized")
+        logger.debug("DeepAgentWorkflow initialized")
 
     async def run_workflow(self, job_id: str, job: Dict[str, Any]) -> str:
         """Process a job using the Deep Agent.
@@ -84,7 +84,7 @@ class DeepAgentWorkflow:
             model=self._llm_strategy.get_llm(),
         )
 
-        logger.info(f"Executing Deep Agent workflow for job {job_id}")
+        logger.debug(f"Executing Deep Agent workflow for job {job_id}")
 
         # Invoke the agent
         config = {"configurable": {"job_id": f"{job_id}"}}
@@ -98,7 +98,7 @@ class DeepAgentWorkflow:
         )
         self._store_result_json(result, job_id, settings.storage.output_dir)
 
-        logger.info(f"Deep Agent workflow completed for job {job_id}")
+        logger.debug(f"Deep Agent workflow completed for job {job_id}")
 
         # Check if report.json contains valid non-empty JSON
         return self._check_report_json(job_id, settings.storage.output_dir)
