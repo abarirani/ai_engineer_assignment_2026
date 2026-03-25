@@ -12,11 +12,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from openinference.instrumentation.langchain import LangChainInstrumentor
 
-from app.api.dependencies import init_dependencies
+from app.services.workflow_service import WorkflowService
 from app.api.endpoints import router as api_router
 from app.config.settings import settings
 from app.observability import flush_all_traces_to_file
-from app.services.workflow_service import WorkflowService
 
 # Configure logging
 logging.basicConfig(
@@ -46,13 +45,7 @@ async def lifespan(app: FastAPI):
     LangChainInstrumentor().instrument()
     logger.info("LangChain instrumentation initialized")
 
-    # Initialize workflow service with database
-    workflow_service = WorkflowService()
-    logger.info("Workflow service initialized")
-
-    # Initialize dependency injection
-    init_dependencies(workflow_service)
-    logger.info("Dependencies initialized")
+    app.state.workflow_service = WorkflowService()
 
     logger.info("Application startup complete")
 

@@ -51,7 +51,9 @@ class WorkflowService:
         Raises:
             RuntimeError: If workflow initialization fails.
         """
-        self._semaphore_manager = SemaphoreManager(settings.processing.max_concurrent_jobs)
+        self._semaphore_manager = SemaphoreManager(
+            settings.processing.max_concurrent_jobs
+        )
 
         self._db = JobDatabase(settings.database.path)
 
@@ -189,21 +191,3 @@ class WorkflowService:
     async def get_job_status(self, job_id: str) -> [Dict[str, Any]]:
         """Get job status."""
         return self._db.get_job(job_id)
-
-
-_workflow_service_instance: WorkflowService = None
-
-
-def get_workflow_service() -> WorkflowService:
-    """Workflow service dependency - returns singleton instance.
-
-    Returns:
-        WorkflowService instance
-
-    Raises:
-        RuntimeError: If workflow service has not been initialized
-    """
-    global _workflow_service_instance
-    if _workflow_service_instance is None:
-        raise RuntimeError("Workflow service not initialized")
-    return _workflow_service_instance

@@ -5,10 +5,9 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, UploadFile, status
+from fastapi import APIRouter, Request, BackgroundTasks, File, Form, UploadFile, status
 from fastapi.responses import JSONResponse
 
-from app.services.workflow_service import get_workflow_service
 from app.config.settings import settings
 from app.models.schemas import (
     JobResult,
@@ -34,6 +33,7 @@ router = APIRouter()
     "respecting brand guidelines.",
 )
 async def process_image(
+    request: Request,
     background_tasks: BackgroundTasks,
     image: UploadFile = File(..., description="Image file to process"),
     recommendations: str = Form(
@@ -92,8 +92,8 @@ async def process_image(
             },
         )
 
+    workflow_service = request.app.state.workflow_service
     # Create a new job and schedule background processing
-    workflow_service = get_workflow_service()
     job_id = await workflow_service.create_job(
         image=image,
         recommendations_data=recommendations,
@@ -119,7 +119,7 @@ async def process_image(
     summary="Get job status",
     description="Check the current status of a processing job.",
 )
-async def get_job_status(job_id: str) -> JobStatus:
+async def get_job_status(request: Request, job_id: str) -> JobStatus:
     """Get the status of a processing job.
 
     Args:
@@ -131,7 +131,7 @@ async def get_job_status(job_id: str) -> JobStatus:
     Raises:
         HTTPException: If job not found
     """
-    workflow_service = get_workflow_service()
+    workflow_service = request.app.state.workflow_service
     job = await workflow_service.get_job_status(job_id)
     if not job:
         raise JSONResponse(
@@ -157,7 +157,7 @@ async def get_job_status(job_id: str) -> JobStatus:
     description="Retrieve the complete result of a processing job including "
     "generated variants and audit trail.",
 )
-async def get_job_result(job_id: str) -> JobResult:
+async def get_job_result(request: Request, job_id: str) -> JobResult:
     """Get the result of a completed job.
 
     Args:
@@ -169,7 +169,7 @@ async def get_job_result(job_id: str) -> JobResult:
     Raises:
         HTTPException: If job not found or not completed
     """
-    workflow_service = get_workflow_service()
+    workflow_service = request.app.state.workflow_service
     job = await workflow_service.get_job_status(job_id)
     if not job:
         raise JSONResponse(
