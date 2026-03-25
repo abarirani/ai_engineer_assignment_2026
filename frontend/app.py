@@ -385,7 +385,7 @@ def display_job_results(job_id: str) -> None:
 
 
 def display_job_history() -> None:
-    """Display the job history from the database."""
+    """Display the job history from the database with latest status from server."""
     st.header("Job History")
 
     jobs = get_all_jobs()
@@ -395,23 +395,42 @@ def display_job_history() -> None:
         return
 
     for job in jobs:
+        # Fetch latest status from server
+        latest_status = get_job_status(job["job_id"])
+
+        # Use server status if available, otherwise fall back to database status
+        display_status = latest_status if latest_status else job
+
+        # Update local database with latest status if server returned data
+        if latest_status:
+            update_job_status(
+                job_id=job["job_id"],
+                status=latest_status["status"],
+                progress=latest_status.get("progress"),
+                message=latest_status.get("message"),
+                error=latest_status.get("error"),
+            )
+
+        # Use the latest status for display
+        status = display_status
+
         with st.expander(
-            f"Job {job['job_id']} - {job['status'].upper()}",
+            f"Job {job['job_id']} - {status['status'].upper()}",
             expanded=False,
         ):
             col1, col2 = st.columns(2)
             with col1:
-                st.metric("Status", job["status"].upper())
+                st.metric("Status", status["status"].upper())
                 st.metric("Submitted", job["submitted_at"])
                 if job["completed_at"]:
                     st.metric("Completed", job["completed_at"])
             with col2:
-                if job["progress"] is not None:
-                    st.metric("Progress", f"{job['progress']}%")
-                if job["message"]:
-                    st.info(job["message"])
-                if job["error"]:
-                    st.error(job["error"])
+                if status.get("progress") is not None:
+                    st.metric("Progress", f"{status['progress']}%")
+                if status.get("message"):
+                    st.info(status["message"])
+                if status.get("error"):
+                    st.error(status["error"])
 
             if job["recommendations"]:
                 with st.expander("Recommendations"):
