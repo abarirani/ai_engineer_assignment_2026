@@ -3,13 +3,13 @@
 import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, UploadFile, status
 from fastapi.responses import JSONResponse
 
+from app.services.workflow_service import get_workflow_service
 from app.config.settings import settings
-from app.models.database import JobDatabase
 from app.models.schemas import (
     JobResult,
     JobStatus,
@@ -18,20 +18,10 @@ from app.models.schemas import (
     ProcessResponse,
     VariantResult,
 )
-from app.utils import generate_unique_id, save_job_inputs
-
-if TYPE_CHECKING:
-    from app.services.workflow_service import WorkflowService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# Database instance (initialized in main.py)
-db: Optional[JobDatabase] = None
-
-# Workflow service instance (initialized in main.py)
-workflow_service: Optional["WorkflowService"] = None
 
 
 @router.post(
@@ -102,29 +92,14 @@ async def process_image(
             },
         )
 
-    # Generate job ID
-    job_id = generate_unique_id()
-
-    # Save uploaded image
-    image_path = save_job_inputs(
-        job_id,
-        image,
-        settings.storage.upload_dir,
-        recommendations_data,
-        brand_guidelines_data,
+    # Create a new job and schedule background processing
+    workflow_service = get_workflow_service()
+    job_id = await workflow_service.create_job(
+        image=image,
+        recommendations_data=recommendations,
+        brand_guidelines_data=brand_guidelines,
+        request=request,
     )
-    image_url = f"/api/v1/images/{Path(image_path).name}"
-
-    # Create job in database
-    request_dict = {
-        "recommendations": [r.dict() for r in request.recommendations],
-        "brand_guidelines": (
-            request.brand_guidelines.dict() if request.brand_guidelines else None
-        ),
-    }
-    db.create_job(job_id, request_dict, image_path, image_url)
-
-    # Schedule background processing
     background_tasks.add_task(workflow_service.process_job, job_id)
 
     logger.info(
@@ -156,7 +131,8 @@ async def get_job_status(job_id: str) -> JobStatus:
     Raises:
         HTTPException: If job not found
     """
-    job = db.get_job(job_id)
+    workflow_service = get_workflow_service()
+    job = await workflow_service.get_job_status(job_id)
     if not job:
         raise JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -193,7 +169,8 @@ async def get_job_result(job_id: str) -> JobResult:
     Raises:
         HTTPException: If job not found or not completed
     """
-    job = db.get_job(job_id)
+    workflow_service = get_workflow_service()
+    job = await workflow_service.get_job_status(job_id)
     if not job:
         raise JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -11,9 +11,12 @@ The Deep Agents approach simplifies the workflow by:
 """
 
 import logging
-from typing import Optional
+from typing import Dict, Any
+from pathlib import Path
 
+from fastapi import UploadFile
 from app.agents.deep_agent_workflow import DeepAgentWorkflow
+from app.services.semaphore_manager import SemaphoreManager
 from app.models.database import JobDatabase
 from app.models.schemas import JobStatusEnum
 from app.observability import (
@@ -21,8 +24,10 @@ from app.observability import (
     flush_job_traces,
     shutdown_job_observability,
 )
+from app.models.schemas import ProcessRequest
 from app.config.settings import settings
-from app.services.semaphore_manager import semaphore_manager
+from app.utils import generate_unique_id, save_job_inputs
+
 
 logger = logging.getLogger(__name__)
 
@@ -40,22 +45,73 @@ class WorkflowService:
         _deep_agent_workflow: The DeepAgentWorkflow instance.
     """
 
-    def __init__(self, db: JobDatabase) -> None:
+    def __init__(self) -> None:
         """Initialize the workflow service.
-
-        Args:
-            db: JobDatabase instance for persistent job storage.
 
         Raises:
             RuntimeError: If workflow initialization fails.
         """
-        self._db = db
+        self._semaphore_manager = SemaphoreManager(settings.processing.max_concurrent_jobs)
+
+        self._db = JobDatabase(settings.database.path)
+
+        # Recover any stale processing jobs from unexpected shutdowns
+        recovered_count = self._db.recover_stale_processing_jobs()
+        if recovered_count > 0:
+            logger.warning(
+                f"Recovered {recovered_count} stale processing job(s) marked as failed"
+            )
+        else:
+            logger.info("No stale processing jobs found")
+
         try:
             self._deep_agent_workflow = DeepAgentWorkflow()
             logger.info("Deep Agent workflow initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize Deep Agent workflow: {e}")
             self._deep_agent_workflow = None
+
+    async def create_job(
+        self,
+        image: UploadFile,
+        recommendations_data,
+        brand_guidelines_data,
+        request: ProcessRequest,
+    ) -> str:
+        """Create a new job.
+
+        Args:
+            image (UploadFile): _description_
+            recommendations_data (_type_): _description_
+            brand_guidelines_data (_type_): _description_
+            request (ProcessRequest): _description_
+
+        Returns:
+            str: _description_
+        """
+        # Generate job ID
+        job_id = generate_unique_id()
+
+        # Save uploaded image
+        image_path = save_job_inputs(
+            job_id,
+            image,
+            settings.storage.upload_dir,
+            recommendations_data,
+            brand_guidelines_data,
+        )
+        image_url = f"/api/v1/images/{Path(image_path).name}"
+
+        # Create job in database
+        request_dict = {
+            "recommendations": [r.dict() for r in request.recommendations],
+            "brand_guidelines": (
+                request.brand_guidelines.dict() if request.brand_guidelines else None
+            ),
+        }
+        self._db.create_job(job_id, request_dict, image_path, image_url)
+
+        return job_id
 
     async def process_job(self, job_id: str) -> None:
         """Background task to process a job using the Deep Agent workflow.
@@ -76,7 +132,7 @@ class WorkflowService:
         logger.info(f"Starting background processing for job: {job_id}")
 
         # Acquire semaphore slot (blocks if max concurrent jobs reached)
-        await semaphore_manager.acquire(job_id)
+        await self._semaphore_manager.acquire(job_id)
 
         try:
             # Fetch job from database
@@ -128,27 +184,26 @@ class WorkflowService:
 
         finally:
             # Release semaphore slot
-            await semaphore_manager.release(job_id)
+            await self._semaphore_manager.release(job_id)
+
+    async def get_job_status(self, job_id: str) -> [Dict[str, Any]]:
+        """Get job status."""
+        return self._db.get_job(job_id)
 
 
-# Singleton instance for use across the application
-_workflow_service: Optional[WorkflowService] = None
+_workflow_service_instance: WorkflowService = None
 
 
-def get_workflow_service(db: Optional[JobDatabase] = None) -> WorkflowService:
-    """Get the singleton workflow service instance.
-
-    Args:
-        db: Optional JobDatabase instance. If provided, creates a new instance.
+def get_workflow_service() -> WorkflowService:
+    """Workflow service dependency - returns singleton instance.
 
     Returns:
-        The singleton WorkflowService instance.
+        WorkflowService instance
+
+    Raises:
+        RuntimeError: If workflow service has not been initialized
     """
-    global _workflow_service
-    if _workflow_service is None:
-        if db is None:
-            raise ValueError(
-                "JobDatabase instance must be provided to get_workflow_service()"
-            )
-        _workflow_service = WorkflowService(db)
-    return _workflow_service
+    global _workflow_service_instance
+    if _workflow_service_instance is None:
+        raise RuntimeError("Workflow service not initialized")
+    return _workflow_service_instance

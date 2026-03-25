@@ -12,11 +12,11 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from openinference.instrumentation.langchain import LangChainInstrumentor
 
+from app.api.dependencies import init_dependencies
 from app.api.endpoints import router as api_router
 from app.config.settings import settings
-from app.models.database import JobDatabase
-from app.services.workflow_service import get_workflow_service
-from app.services.semaphore_manager import semaphore_manager
+from app.observability import flush_all_traces_to_file
+from app.services.workflow_service import WorkflowService
 
 # Configure logging
 logging.basicConfig(
@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 # ============== LIFESPAN MANAGEMENT ==============
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -45,35 +46,13 @@ async def lifespan(app: FastAPI):
     LangChainInstrumentor().instrument()
     logger.info("LangChain instrumentation initialized")
 
-    # Initialize semaphore manager for concurrent job control
-    semaphore_manager.initialize(settings.processing.max_concurrent_jobs)
-    logger.info(
-        f"Semaphore manager initialized with max_concurrent_jobs={settings.processing.max_concurrent_jobs}"
-    )
-
-    # Initialize database
-    db = JobDatabase(settings.database.path)
-    logger.info(f"Database initialized at {settings.database.path}")
-
-    # Recover any stale processing jobs from unexpected shutdowns
-    recovered_count = db.recover_stale_processing_jobs()
-    if recovered_count > 0:
-        logger.warning(
-            f"Recovered {recovered_count} stale processing job(s) marked as failed"
-        )
-    else:
-        logger.info("No stale processing jobs found")
-
     # Initialize workflow service with database
-    workflow_service = get_workflow_service(db)
+    workflow_service = WorkflowService()
     logger.info("Workflow service initialized")
 
-    # Inject dependencies into endpoints module
-    import app.api.endpoints as endpoints_module
-
-    endpoints_module.db = db
-    endpoints_module.workflow_service = workflow_service
-    logger.info("Dependencies injected into endpoints module")
+    # Initialize dependency injection
+    init_dependencies(workflow_service)
+    logger.info("Dependencies initialized")
 
     logger.info("Application startup complete")
 
@@ -81,7 +60,14 @@ async def lifespan(app: FastAPI):
 
     # Shutdown events
     logger.info("Application shutdown initiated")
-    # Add cleanup tasks here (e.g., close database connections, cleanup temp files)
+
+    # Flush all OpenTelemetry traces to a timestamped file
+    trace_file = flush_all_traces_to_file()
+    if trace_file:
+        logger.info(f"All traces flushed to {trace_file}")
+    else:
+        logger.info("No traces to flush")
+
     logger.info("Application shutdown complete")
 
 
