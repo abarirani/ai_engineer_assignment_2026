@@ -563,10 +563,26 @@ def main() -> None:
     if st.session_state.current_page == "Job History":
         display_job_history()
     elif st.session_state.current_page == "Job Status":
-        if st.session_state.job_id:
-            display_job_status(st.session_state.job_id)
+        # Get all jobs from database for selection
+        jobs = get_all_jobs()
+
+        if not jobs:
+            st.info("No jobs found. Start a new processing to track job status.")
         else:
-            st.info("No active job. Start a new processing to track job status.")
+            st.header("Select a Job to Track")
+            job_options = [f"{job['job_id']} - {job['status'].upper()}" for job in jobs]
+            selected_job = st.selectbox(
+                "Choose a job:",
+                options=job_options,
+                index=0 if jobs else None,
+            )
+            if selected_job:
+                selected_job_id = selected_job.split(" - ")[0]
+                # Update session state with selected job
+                if st.session_state.job_id != selected_job_id:
+                    st.session_state.job_id = selected_job_id
+                    st.rerun()
+                display_job_status(st.session_state.job_id)
     elif st.session_state.current_page == "New Processing":
         # Clear job_id when switching to New Processing to ensure clean state
         if st.session_state.job_id is not None:
