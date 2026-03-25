@@ -8,7 +8,7 @@ import requests
 import streamlit as st
 
 # Configuration
-API_BASE_URL = st.secrets.get("api_base_url", "http://localhost:5050")
+API_BASE_URL = st.secrets.get("api.api_base_url", "http://localhost:5050")
 
 
 def get_recommendation_types() -> List[str]:
@@ -55,17 +55,25 @@ def remove_recommendation(index: int) -> None:
 
 def edit_recommendation(index: int, field: str, value: str) -> None:
     """Edit a specific field of a recommendation."""
-    if "recommendations" in st.session_state and index < len(st.session_state.recommendations):
+    if "recommendations" in st.session_state and index < len(
+        st.session_state.recommendations
+    ):
         st.session_state.recommendations[index][field] = value
 
 
 def submit_job() -> Optional[str]:
     """Submit a job to the API and return the job ID."""
-    if "recommendations" not in st.session_state or len(st.session_state.recommendations) == 0:
+    if (
+        "recommendations" not in st.session_state
+        or len(st.session_state.recommendations) == 0
+    ):
         st.error("Please add at least one recommendation.")
         return None
 
-    if "uploaded_file" not in st.session_state or st.session_state.uploaded_file is None:
+    if (
+        "uploaded_file" not in st.session_state
+        or st.session_state.uploaded_file is None
+    ):
         st.error("Please upload an image.")
         return None
 
@@ -75,7 +83,9 @@ def submit_job() -> Optional[str]:
         if rec["title"].strip() and rec["description"].strip():
             recommendations.append(rec)
         else:
-            st.warning(f"Recommendation '{rec['title']}' is incomplete and will be skipped.")
+            st.warning(
+                f"Recommendation '{rec['title']}' is incomplete and will be skipped."
+            )
 
     if len(recommendations) == 0:
         st.error("Please complete at least one recommendation.")
@@ -84,7 +94,9 @@ def submit_job() -> Optional[str]:
     # Build brand guidelines
     brand_guidelines = {}
     if st.session_state.protected_regions:
-        brand_guidelines["protected_regions"] = st.session_state.protected_regions.split("\n")
+        brand_guidelines["protected_regions"] = (
+            st.session_state.protected_regions.split("\n")
+        )
     if st.session_state.typography:
         brand_guidelines["typography"] = st.session_state.typography
     if st.session_state.aspect_ratio:
@@ -183,7 +195,9 @@ def display_recommendation_form(index: int, rec: Dict[str, str]) -> None:
     # Update session state from form values
     edit_recommendation(index, "title", st.session_state.get(f"rec_title_{index}", ""))
     edit_recommendation(index, "type", st.session_state.get(f"rec_type_{index}", ""))
-    edit_recommendation(index, "description", st.session_state.get(f"rec_desc_{index}", ""))
+    edit_recommendation(
+        index, "description", st.session_state.get(f"rec_desc_{index}", "")
+    )
 
     # Remove button
     if st.button("Remove", key=f"remove_rec_{index}"):
@@ -245,7 +259,9 @@ def display_job_status(job_id: str) -> None:
         "failed": ("❌ Failed", "error"),
     }
 
-    status_label, status_type = status_map.get(status["status"], ("❓ Unknown", "secondary"))
+    status_label, status_type = status_map.get(
+        status["status"], ("❓ Unknown", "secondary")
+    )
 
     st.subheader(f"Job Status: {status_label}")
 
@@ -340,11 +356,11 @@ def main() -> None:
             index=0 if st.session_state.job_id is None else 1,
         )
 
-        if page == "New Processing":
-            st.session_state.job_id = None
-            st.rerun()
-        elif page == "Job Status" and st.session_state.job_id:
-            st.rerun()
+        # if page == "New Processing":
+        #     st.session_state.job_id = None
+        #     st.rerun()
+        # elif page == "Job Status" and st.session_state.job_id:
+        #     st.rerun()
 
     # Main content based on state
     if st.session_state.job_id:
