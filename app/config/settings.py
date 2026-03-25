@@ -107,6 +107,9 @@ class ProcessingSettings(BaseSettings):
     processing_timeout_seconds: int = Field(
         default=300, description="Processing timeout in seconds"
     )
+    max_concurrent_jobs: int = Field(
+        default=1, description="Maximum number of concurrent jobs allowed"
+    )
 
 
 class DatabaseSettings(BaseSettings):

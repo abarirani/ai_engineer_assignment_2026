@@ -30,6 +30,7 @@ processing:
     - ".webp"
   max_iterations: 3
   processing_timeout_seconds: 300
+  max_concurrent_jobs: 1
 
 # Logging
 logging:

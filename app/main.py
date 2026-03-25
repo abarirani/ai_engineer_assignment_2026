@@ -16,6 +16,7 @@ from app.api.endpoints import router as api_router
 from app.config.settings import settings
 from app.models.database import JobDatabase
 from app.services.workflow_service import get_workflow_service
+from app.services.semaphore_manager import semaphore_manager
 
 # Configure logging
 logging.basicConfig(
@@ -27,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 
 # ============== LIFESPAN MANAGEMENT ==============
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -44,6 +44,12 @@ async def lifespan(app: FastAPI):
     # This must be done before any tracer provider is set
     LangChainInstrumentor().instrument()
     logger.info("LangChain instrumentation initialized")
+
+    # Initialize semaphore manager for concurrent job control
+    semaphore_manager.initialize(settings.processing.max_concurrent_jobs)
+    logger.info(
+        f"Semaphore manager initialized with max_concurrent_jobs={settings.processing.max_concurrent_jobs}"
+    )
 
     # Initialize database
     db = JobDatabase(settings.database.path)
