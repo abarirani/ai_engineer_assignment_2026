@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional
 import requests
 import streamlit as st
 
+from database import init_database, save_job, update_job_status, get_all_jobs
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -133,7 +135,9 @@ def submit_job() -> Optional[str]:
     logger.info(f"Submitting job to API: {url}")
     logger.info(f"Image file: {st.session_state.uploaded_file.name}")
     logger.info(f"Recommendations: {json.dumps(recommendations, indent=2)}")
-    logger.info(f"Brand guidelines: {json.dumps(brand_guidelines, indent=2) if brand_guidelines else 'None'}")
+    logger.info(
+        f"Brand guidelines: {json.dumps(brand_guidelines, indent=2) if brand_guidelines else 'None'}"
+    )
 
     try:
         response = requests.post(url, files=files, data=data, timeout=30)
@@ -143,6 +147,15 @@ def submit_job() -> Optional[str]:
             result = response.json()
             job_id = result.get("job_id")
             logger.info(f"Job submitted successfully with ID: {job_id}")
+            # Save job to database
+            save_job(
+                job_id=job_id,
+                status="pending",
+                recommendations=json.dumps(recommendations),
+                brand_guidelines=(
+                    json.dumps(brand_guidelines) if brand_guidelines else None
+                ),
+            )
             return job_id
         else:
             st.error(f"API error: {response.status_code} - {response.text}")
@@ -187,7 +200,9 @@ def get_job_result(job_id: str) -> Optional[Dict[str, Any]]:
             logger.info(f"Job result retrieved successfully for job: {job_id}")
             return result
         else:
-            logger.warning(f"Failed to get job result: {response.status_code} - {response.text}")
+            logger.warning(
+                f"Failed to get job result: {response.status_code} - {response.text}"
+            )
             return None
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to get job result: {e}")
@@ -282,6 +297,15 @@ def display_job_status(job_id: str) -> None:
         st.error("Job not found.")
         return
 
+    # Update job status in database
+    update_job_status(
+        job_id=job_id,
+        status=status["status"],
+        progress=status.get("progress"),
+        message=status.get("message"),
+        error=status.get("error"),
+    )
+
     status_map = {
         "pending": ("⏳ Pending", "secondary"),
         "processing": ("⚙️ Processing", "primary"),
@@ -325,6 +349,13 @@ def display_job_results(job_id: str) -> None:
         st.error("Failed to retrieve job results.")
         return
 
+    # Update job status in database with result data
+    update_job_status(
+        job_id=job_id,
+        status="completed",
+        result_data=json.dumps(result),
+    )
+
     # Display input image
     if result.get("input_image_url"):
         st.subheader("Input Image")
@@ -353,6 +384,50 @@ def display_job_results(job_id: str) -> None:
             st.markdown(result["messages_content"])
 
 
+def display_job_history() -> None:
+    """Display the job history from the database."""
+    st.header("Job History")
+
+    jobs = get_all_jobs()
+
+    if not jobs:
+        st.info("No jobs found in the database.")
+        return
+
+    for job in jobs:
+        with st.expander(
+            f"Job {job['job_id']} - {job['status'].upper()}",
+            expanded=False,
+        ):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Status", job["status"].upper())
+                st.metric("Submitted", job["submitted_at"])
+                if job["completed_at"]:
+                    st.metric("Completed", job["completed_at"])
+            with col2:
+                if job["progress"] is not None:
+                    st.metric("Progress", f"{job['progress']}%")
+                if job["message"]:
+                    st.info(job["message"])
+                if job["error"]:
+                    st.error(job["error"])
+
+            if job["recommendations"]:
+                with st.expander("Recommendations"):
+                    st.json(json.loads(job["recommendations"]))
+
+            if job["brand_guidelines"]:
+                with st.expander("Brand Guidelines"):
+                    st.json(json.loads(job["brand_guidelines"]))
+
+            if job["result_data"]:
+                with st.expander("Result Data"):
+                    st.json(json.loads(job["result_data"]))
+
+            st.divider()
+
+
 def main() -> None:
     """Main application entry point."""
     st.set_page_config(
@@ -360,6 +435,9 @@ def main() -> None:
         page_icon="🎨",
         layout="wide",
     )
+
+    # Initialize database
+    init_database()
 
     st.title("🎨 AI Image Processing Application")
     st.markdown(
@@ -382,7 +460,7 @@ def main() -> None:
     # Sidebar for navigation
     with st.sidebar:
         st.header("Navigation")
-        pages = ["New Processing", "Job Status"]
+        pages = ["New Processing", "Job Status", "Job History"]
         st.session_state.current_page = st.radio(
             "Go to",
             pages,
@@ -390,7 +468,9 @@ def main() -> None:
         )
 
     # Main content based on current page
-    if st.session_state.current_page == "Job Status":
+    if st.session_state.current_page == "Job History":
+        display_job_history()
+    elif st.session_state.current_page == "Job Status":
         if st.session_state.job_id:
             display_job_status(st.session_state.job_id)
         else:
