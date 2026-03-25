@@ -14,7 +14,6 @@ class JobStatusEnum(str, Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
-    CANCELLED = "cancelled"
 
 
 class RecommendationType(str, Enum):
