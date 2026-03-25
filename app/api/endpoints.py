@@ -112,29 +112,47 @@ async def process_image(
 
 
 @router.get(
-    "/images/{job_id}/{filename}",
-    summary="Get uploaded image",
-    description="Retrieve an uploaded image by job ID and filename.",
+    "/images/{job_id}/{image_type}/{filename}",
+    summary="Get image",
+    description="Retrieve an image by job ID, type, and filename.",
 )
-async def get_image(job_id: str, filename: str) -> FileResponse:
-    """Serve an uploaded image by job ID and filename.
+async def get_image(job_id: str, image_type: str, filename: str) -> FileResponse:
+    """Serve an image by job ID, type, and filename.
+
+    This endpoint serves both:
+    - Uploaded input images (image_type='upload')
+    - Generated variant images (image_type='variant')
 
     Args:
         job_id: The job ID associated with the image
-        filename: The filename of the uploaded image
+        image_type: Type of image - 'upload' for input images, 'variant' for generated variants
+        filename: The filename of the image
 
     Returns:
         FileResponse with the image content
 
     Raises:
-        HTTPException: If image not found
+        HTTPException: If image not found or invalid image_type
     """
-    image_path = Path(settings.storage.upload_dir) / job_id / filename
+    # Determine the directory based on image_type
+    if image_type == "upload":
+        base_dir = settings.storage.upload_dir
+    elif image_type == "variant":
+        base_dir = settings.storage.output_dir
+    else:
+        raise JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "detail": f"Invalid image_type: {image_type}. Must be 'upload' or 'variant'"
+            },
+        )
+
+    image_path = Path(base_dir) / job_id / filename
 
     if not image_path.exists():
         raise JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
-            content={"detail": f"Image not found: {job_id}/{filename}"},
+            content={"detail": f"Image not found: {job_id}/{image_type}/{filename}"},
         )
 
     return FileResponse(
@@ -231,10 +249,28 @@ async def get_job_result(request: Request, job_id: str) -> JobResult:
     variants = []
     if report_content and "variants" in report_content:
         for v in report_content["variants"]:
+            # Convert local file path to API URL path
+            local_path = v.get("path", "")
+            if local_path:
+                # Extract job_id and filename from the local path
+                path_parts = Path(local_path).parts
+                if len(path_parts) >= 2:
+                    filename = path_parts[-1]
+                    # Find the job_id in the path (it's the directory before the filename)
+                    job_id_from_path = path_parts[-2]
+                    # Use the new URL format with image_type (relative to API_BASE_URL)
+                    variant_url = (
+                        f"/images/{job_id_from_path}/variant/{filename}"
+                    )
+                else:
+                    variant_url = local_path
+            else:
+                variant_url = ""
+
             variants.append(
                 VariantResult(
                     recommendation_id=v.get("recommendation_id", ""),
-                    variant_url=v.get("path", ""),
+                    variant_url=variant_url,
                     evaluation_score=v.get("evaluation_score", 0.0),
                     iterations=v.get("iterations", 1),
                 )

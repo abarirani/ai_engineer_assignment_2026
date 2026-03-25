@@ -92,7 +92,8 @@ class WorkflowService:
 
         # Save uploaded image
         image_path = save_job_inputs(job_id, image, settings.storage.upload_dir)
-        image_url = f"/api/v1/images/{job_id}/{Path(image_path).name}"
+        # URL is relative to API_BASE_URL (which includes /api/v1)
+        image_url = f"/images/{job_id}/upload/{Path(image_path).name}"
 
         # Create job in database
         request_dict = {
