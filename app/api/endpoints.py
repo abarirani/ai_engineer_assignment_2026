@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Request, BackgroundTasks, File, Form, UploadFile, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 
 from app.config.settings import settings
 from app.models.schemas import (
@@ -17,6 +17,7 @@ from app.models.schemas import (
     ProcessResponse,
     VariantResult,
 )
+from app.utils import get_image_media_type
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +108,38 @@ async def process_image(
         job_id=job_id,
         status=JobStatusEnum.PENDING,
         message="Job queued for processing",
+    )
+
+
+@router.get(
+    "/images/{job_id}/{filename}",
+    summary="Get uploaded image",
+    description="Retrieve an uploaded image by job ID and filename.",
+)
+async def get_image(job_id: str, filename: str) -> FileResponse:
+    """Serve an uploaded image by job ID and filename.
+
+    Args:
+        job_id: The job ID associated with the image
+        filename: The filename of the uploaded image
+
+    Returns:
+        FileResponse with the image content
+
+    Raises:
+        HTTPException: If image not found
+    """
+    image_path = Path(settings.storage.upload_dir) / job_id / filename
+
+    if not image_path.exists():
+        raise JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"detail": f"Image not found: {job_id}/{filename}"},
+        )
+
+    return FileResponse(
+        image_path,
+        media_type=get_image_media_type(filename),
     )
 
 

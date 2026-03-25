@@ -359,7 +359,13 @@ def display_job_results(job_id: str) -> None:
     # Display input image
     if result.get("input_image_url"):
         st.subheader("Input Image")
-        st.image(result["input_image_url"])
+        # Prepend API base URL to the image path
+        image_url = (
+            API_BASE_URL + result["input_image_url"]
+            if not result["input_image_url"].startswith("http")
+            else result["input_image_url"]
+        )
+        st.image(image_url)
 
     # Display variants
     if result.get("variants"):
@@ -369,7 +375,13 @@ def display_job_results(job_id: str) -> None:
             with st.expander(
                 f"Variant for: {variant.get('recommendation_id', 'Unknown')}"
             ):
-                st.image(variant["variant_url"])
+                # Prepend API base URL to the variant path
+                variant_url = (
+                    API_BASE_URL + variant["variant_url"]
+                    if not variant["variant_url"].startswith("http")
+                    else variant["variant_url"]
+                )
+                st.image(variant_url)
                 st.metric("Evaluation Score", f"{variant['evaluation_score']:.2f}/10")
                 st.metric("Iterations", variant["iterations"])
 
@@ -443,6 +455,63 @@ def display_job_history() -> None:
             if job["result_data"]:
                 with st.expander("Result Data"):
                     st.json(json.loads(job["result_data"]))
+
+            # Display job results if completed
+            if status["status"] == "completed":
+                st.subheader("Job Results")
+                result = get_job_result(job["job_id"])
+
+                if result:
+                    # Update job status in database with result data
+                    update_job_status(
+                        job_id=job["job_id"],
+                        status="completed",
+                        result_data=json.dumps(result),
+                    )
+
+                    # Display input image
+                    if result.get("input_image_url"):
+                        st.subheader("Input Image")
+                        # Prepend API base URL to the image path
+                        image_url = (
+                            API_BASE_URL + result["input_image_url"]
+                            if not result["input_image_url"].startswith("http")
+                            else result["input_image_url"]
+                        )
+                        st.image(image_url)
+
+                    # Display variants
+                    if result.get("variants"):
+                        st.subheader("Generated Variants")
+
+                        for variant in result["variants"]:
+                            with st.expander(
+                                f"Variant for: {variant.get('recommendation_id', 'Unknown')}"
+                            ):
+                                # Prepend API base URL to the variant path
+                                variant_url = (
+                                    API_BASE_URL + variant["variant_url"]
+                                    if not variant["variant_url"].startswith("http")
+                                    else variant["variant_url"]
+                                )
+                                st.image(variant_url)
+                                st.metric(
+                                    "Evaluation Score",
+                                    f"{variant['evaluation_score']:.2f}/10",
+                                )
+                                st.metric("Iterations", variant["iterations"])
+
+                    # Display report content
+                    if result.get("report_content"):
+                        with st.expander("Report Details"):
+                            st.json(result["report_content"])
+
+                    # Display messages
+                    if result.get("messages_content"):
+                        with st.expander("Processing Messages"):
+                            st.markdown(result["messages_content"])
+                else:
+                    st.warning("Failed to retrieve job results.")
 
             st.divider()
 
