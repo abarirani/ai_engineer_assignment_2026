@@ -549,11 +549,15 @@ def main() -> None:
     with st.sidebar:
         st.header("Navigation")
         pages = ["New Processing", "Job Status", "Job History"]
-        st.session_state.current_page = st.radio(
+        selected_page = st.selectbox(
             "Go to",
-            pages,
+            options=pages,
             index=pages.index(st.session_state.current_page),
         )
+        # Update session state and rerun if page changed
+        if selected_page != st.session_state.current_page:
+            st.session_state.current_page = selected_page
+            st.rerun()
 
     # Main content based on current page
     if st.session_state.current_page == "Job History":
