@@ -1,14 +1,22 @@
 """Streamlit frontend for the AI Image Processing Application."""
 
 import json
+import logging
 import time
 from typing import Any, Dict, List, Optional
 
 import requests
 import streamlit as st
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 # Configuration
-API_BASE_URL = st.secrets.get("api.api_base_url", "http://localhost:5050")
+API_BASE_URL = st.secrets.get("api.api_base_url", "http://localhost:5050/api/v1")
 
 
 def get_recommendation_types() -> List[str]:
@@ -121,15 +129,26 @@ def submit_job() -> Optional[str]:
         "brand_guidelines": json.dumps(brand_guidelines) if brand_guidelines else "",
     }
 
+    # Log the request
+    logger.info(f"Submitting job to API: {url}")
+    logger.info(f"Image file: {st.session_state.uploaded_file.name}")
+    logger.info(f"Recommendations: {json.dumps(recommendations, indent=2)}")
+    logger.info(f"Brand guidelines: {json.dumps(brand_guidelines, indent=2) if brand_guidelines else 'None'}")
+
     try:
         response = requests.post(url, files=files, data=data, timeout=30)
+        logger.info(f"API response status: {response.status_code}")
+        logger.info(f"API response body: {response.text}")
         if response.status_code == 202:
             result = response.json()
-            return result.get("job_id")
+            job_id = result.get("job_id")
+            logger.info(f"Job submitted successfully with ID: {job_id}")
+            return job_id
         else:
             st.error(f"API error: {response.status_code} - {response.text}")
             return None
     except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to connect to API: {e}")
         st.error(f"Failed to connect to API: {e}")
         return None
 
@@ -137,16 +156,21 @@ def submit_job() -> Optional[str]:
 def get_job_status(job_id: str) -> Optional[Dict[str, Any]]:
     """Get the status of a job from the API."""
     url = f"{API_BASE_URL}/status/{job_id}"
+    logger.info(f"Getting job status from API: {url}")
     try:
         response = requests.get(url, timeout=10)
+        logger.info(f"Job status API response status: {response.status_code}")
+        logger.info(f"Job status API response body: {response.text}")
         if response.status_code == 200:
             return response.json()
         elif response.status_code == 404:
+            logger.warning(f"Job not found: {job_id}")
             return None
         else:
             st.error(f"API error: {response.status_code}")
             return None
     except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to get job status: {e}")
         st.error(f"Failed to get job status: {e}")
         return None
 
@@ -154,13 +178,19 @@ def get_job_status(job_id: str) -> Optional[Dict[str, Any]]:
 def get_job_result(job_id: str) -> Optional[Dict[str, Any]]:
     """Get the result of a completed job from the API."""
     url = f"{API_BASE_URL}/result/{job_id}"
+    logger.info(f"Getting job result from API: {url}")
     try:
         response = requests.get(url, timeout=30)
+        logger.info(f"Job result API response status: {response.status_code}")
         if response.status_code == 200:
-            return response.json()
+            result = response.json()
+            logger.info(f"Job result retrieved successfully for job: {job_id}")
+            return result
         else:
+            logger.warning(f"Failed to get job result: {response.status_code} - {response.text}")
             return None
     except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to get job result: {e}")
         st.error(f"Failed to get job result: {e}")
         return None
 
@@ -346,26 +376,30 @@ def main() -> None:
         st.session_state.uploaded_file = None
     if "job_id" not in st.session_state:
         st.session_state.job_id = None
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = "New Processing"
 
     # Sidebar for navigation
     with st.sidebar:
         st.header("Navigation")
-        page = st.radio(
+        pages = ["New Processing", "Job Status"]
+        st.session_state.current_page = st.radio(
             "Go to",
-            ["New Processing", "Job Status"],
-            index=0 if st.session_state.job_id is None else 1,
+            pages,
+            index=pages.index(st.session_state.current_page),
         )
 
-        # if page == "New Processing":
-        #     st.session_state.job_id = None
-        #     st.rerun()
-        # elif page == "Job Status" and st.session_state.job_id:
-        #     st.rerun()
-
-    # Main content based on state
-    if st.session_state.job_id:
-        display_job_status(st.session_state.job_id)
-    else:
+    # Main content based on current page
+    if st.session_state.current_page == "Job Status":
+        if st.session_state.job_id:
+            display_job_status(st.session_state.job_id)
+        else:
+            st.info("No active job. Start a new processing to track job status.")
+    elif st.session_state.current_page == "New Processing":
+        # Clear job_id when switching to New Processing to ensure clean state
+        if st.session_state.job_id is not None:
+            st.session_state.job_id = None
+            st.rerun()
         # Image upload
         st.header("1. Upload Image")
         uploaded_file = st.file_uploader(
