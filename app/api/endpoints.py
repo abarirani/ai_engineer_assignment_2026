@@ -5,7 +5,16 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Request, BackgroundTasks, File, Form, UploadFile, status, HTTPException
+from fastapi import (
+    APIRouter,
+    Request,
+    BackgroundTasks,
+    File,
+    Form,
+    UploadFile,
+    status,
+    HTTPException,
+)
 from fastapi.responses import JSONResponse, FileResponse
 
 from app.config.settings import settings
@@ -142,7 +151,7 @@ async def get_image(job_id: str, image_type: str, filename: str) -> FileResponse
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid image_type: {image_type}. Must be 'upload' or 'variant'"
+            detail=f"Invalid image_type: {image_type}. Must be 'upload' or 'variant'",
         )
 
     image_path = Path(base_dir) / job_id / filename
@@ -150,7 +159,7 @@ async def get_image(job_id: str, image_type: str, filename: str) -> FileResponse
     if not image_path.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Image not found: {job_id}/{image_type}/{filename}"
+            detail=f"Image not found: {job_id}/{image_type}/{filename}",
         )
 
     return FileResponse(
@@ -243,6 +252,12 @@ async def get_job_result(request: Request, job_id: str) -> JobResult:
     if messages_path.exists():
         messages_content = messages_path.read_text()
 
+    # Read traces.json
+    trace_content = None
+    trace_path = Path(settings.storage.output_dir) / job_id / "traces.json"
+    if trace_path.exists():
+        trace_content = json.loads(trace_path.read_text())
+
     # Parse variants from report if available
     variants = []
     if report_content and "variants" in report_content:
@@ -257,9 +272,7 @@ async def get_job_result(request: Request, job_id: str) -> JobResult:
                     # Find the job_id in the path (it's the directory before the filename)
                     job_id_from_path = path_parts[-2]
                     # Use the new URL format with image_type (relative to API_BASE_URL)
-                    variant_url = (
-                        f"/images/{job_id_from_path}/variant/{filename}"
-                    )
+                    variant_url = f"/images/{job_id_from_path}/variant/{filename}"
                 else:
                     variant_url = local_path
             else:
@@ -281,6 +294,7 @@ async def get_job_result(request: Request, job_id: str) -> JobResult:
         variants=variants,
         report_content=report_content,
         messages_content=messages_content,
+        trace_content=trace_content,
         created_at=job["created_at"],
         completed_at=job["completed_at"],
     )
