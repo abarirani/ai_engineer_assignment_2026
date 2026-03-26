@@ -10,8 +10,12 @@ from pathlib import Path
 
 from PIL import Image
 
-from ..parameters import EditParameters
-from ..strategy import ImageEditResult, ImageEditingStrategy, ModelInfo
+from app.services.image_editing.parameters import EditParameters
+from app.services.image_editing.strategy import (
+    ImageEditResult,
+    ImageEditingStrategy,
+    ModelInfo,
+)
 
 logger = logging.getLogger(__name__)
 
