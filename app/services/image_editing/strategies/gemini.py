@@ -6,9 +6,18 @@ with image generation/editing capabilities.
 
 import io
 import logging
+from typing import Any
 
 from PIL import Image
 from google import genai
+from google.genai.errors import APIError, ClientError, ServerError
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    RetryError,
+)
 
 from app.services.image_editing.parameters import EditParameters
 from app.services.image_editing.strategy import (
@@ -42,6 +51,35 @@ class GeminiEditingStrategy(ImageEditingStrategy):
         self.model_name = model_name
         logger.info(f"GeminiEditingStrategy initialized with model: {model_name}")
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        retry=retry_if_exception_type(
+            (APIError, ClientError, ServerError, TimeoutError)
+        ),
+        reraise=True,
+    )
+    def _call_gemini_api(
+        self, client: genai.Client, prompt: str, image: Image.Image
+    ) -> Any:
+        """Call Gemini API with retry logic.
+
+        Args:
+            client: The Gemini API client.
+            prompt: Text prompt describing the desired edit.
+            image: The input PIL Image to edit.
+
+        Returns:
+            The API response object.
+
+        Raises:
+            RetryError: If all retry attempts are exhausted.
+        """
+        return client.models.generate_content(
+            model=self.model_name,
+            contents=[prompt, image],
+        )
+
     def edit_image(
         self,
         image: Image.Image,
@@ -59,16 +97,11 @@ class GeminiEditingStrategy(ImageEditingStrategy):
             ImageEditResult containing the edited image or error information.
         """
         try:
+            # Initialize client with default timeout configuration
             client = genai.Client()
 
-            # Call Gemini API for image editing
-            response = client.models.generate_content(
-                model=self.model_name,
-                contents=[prompt, image],
-                # config={
-                #     "temperature": min(1.0, parameters.guidance_scale / 5.0),
-                # },
-            )
+            # Call Gemini API for image editing with retry logic
+            response = self._call_gemini_api(client, prompt, image)
 
             # Process response and extract edited image
             edited_image = self._process_response(response)
@@ -83,6 +116,25 @@ class GeminiEditingStrategy(ImageEditingStrategy):
                     "input_size": (image.width, image.height),
                     "output_size": (edited_image.width, edited_image.height),
                 },
+            )
+
+        except RetryError as e:
+            # All retry attempts exhausted
+            logger.error(
+                f"Image editing failed after 3 retry attempts: {e.last_attempt.exception()}"
+            )
+            return ImageEditResult(
+                image=None,
+                success=False,
+                error_message=f"Failed after 3 retry attempts: {str(e.last_attempt.exception())}",
+            )
+
+        except TimeoutError as e:
+            logger.error(f"Image editing timed out: {e}")
+            return ImageEditResult(
+                image=None,
+                success=False,
+                error_message="Request timed out",
             )
 
         except Exception as e:
