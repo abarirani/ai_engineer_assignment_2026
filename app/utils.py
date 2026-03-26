@@ -33,3 +33,24 @@ def save_job_inputs(job_id: str, file: UploadFile, upload_dir: str) -> str:
         shutil.copyfileobj(file.file, buffer)
 
     return str(file_path)
+
+
+def get_image_media_type(filename: str) -> str:
+    """Get the MIME type for an image based on its extension.
+
+    Args:
+        filename: The filename to check
+
+    Returns:
+        The appropriate MIME type for the image
+    """
+    extension = Path(filename).suffix.lower()
+    media_types = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+        ".bmp": "image/bmp",
+    }
+    return media_types.get(extension, "application/octet-stream")

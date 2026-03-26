@@ -211,3 +211,5 @@ data/
 output/
 
 *.png
+
+*.db

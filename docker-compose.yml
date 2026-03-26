@@ -1,0 +1,63 @@
+# Visual Recommendations Agentic Workflow - Docker Compose
+# Production deployment configuration
+
+version: '3.8'
+
+services:
+  # Backend API Service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: visual-recommendations-backend
+    restart: unless-stopped
+    environment:
+      - APP_ENV=production
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=5050
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    ports:
+      - "${BACKEND_PORT:-5050}:5050"
+    volumes:
+      - ./data/input:/app/data/input
+      - ./data/output:/app/data/output
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5050/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - visual-recommendations-network
+    env_file:
+      - .env
+
+  # Frontend Streamlit Service
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: visual-recommendations-frontend
+    restart: unless-stopped
+    environment:
+      - API_BASE_URL=http://backend:5050/api/v1
+    ports:
+      - "${FRONTEND_PORT:-8501}:8501"
+    depends_on:
+      - backend
+    volumes:
+      # Mount Docker-specific secrets file as secrets.toml in container
+      - ./frontend/.streamlit/secrets.docker.toml:/app/frontend/.streamlit/secrets.toml
+      - ./frontend/jobs.db:/app/frontend/jobs.db
+    networks:
+      - visual-recommendations-network
+    env_file:
+      - .env
+
+networks:
+  visual-recommendations-network:
+    driver: bridge
+
+volumes:
+  input-data:
+  output-data:

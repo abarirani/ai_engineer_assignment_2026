@@ -15,7 +15,6 @@ from openinference.instrumentation.langchain import LangChainInstrumentor
 from app.services.workflow_service import WorkflowService
 from app.api.endpoints import router as api_router
 from app.config.settings import settings
-from app.observability import flush_all_traces_to_file
 
 # Configure logging
 logging.basicConfig(
@@ -50,16 +49,6 @@ async def lifespan(app: FastAPI):
     logger.info("Application startup complete")
 
     yield
-
-    # Shutdown events
-    logger.info("Application shutdown initiated")
-
-    # Flush all OpenTelemetry traces to a timestamped file
-    trace_file = flush_all_traces_to_file()
-    if trace_file:
-        logger.info(f"All traces flushed to {trace_file}")
-    else:
-        logger.info("No traces to flush")
 
     logger.info("Application shutdown complete")
 
