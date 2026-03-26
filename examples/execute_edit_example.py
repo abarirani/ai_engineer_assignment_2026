@@ -45,8 +45,8 @@ def main():
     # Create a ToolRuntime instance simulating LangChain tool calling
     runtime = create_tool_runtime(job_id=generate_unique_id())
 
-    # Example 1: Basic usage with default priority (1)
-    print("Example 1: Basic edit with default priority")
+    # Example 1: Basic usage
+    print("Example 1: Basic edit")
     result = execute_edit(
         prompt=prompt,
         image_path=image_path,

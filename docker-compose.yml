@@ -16,6 +16,7 @@ services:
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=5050
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     ports:
       - "${BACKEND_PORT:-5050}:5050"
     volumes:

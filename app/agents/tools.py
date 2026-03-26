@@ -53,7 +53,7 @@ def execute_edit(prompt: str, image_path: str, runtime: ToolRuntime) -> Dict[str
         output_path = os.path.join(output_dir, output_filename)
 
         logger.debug(f"Editing {image_path} for job {job_id}.")
-        image = Image.open(image_path).convert("RGB")
+        image = Image.open(image_path)
 
         # Get strategy from factory based on configuration
         strategy = ImageEditingStrategyFactory.create_strategy(settings.image_editing)
