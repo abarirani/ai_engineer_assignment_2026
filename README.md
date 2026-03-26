@@ -117,3 +117,83 @@ Retrieve the complete result of a completed job.
   "completed_at": "2026-03-20T10:00:30Z"
 }
 ```
+
+## Docker Compose Deployment
+
+### Prerequisites
+
+- Docker
+- Docker Compose
+
+### Quick Start
+
+1. **Copy environment file and configure:**
+
+```bash
+cp .env.example .env
+# Edit .env and set your OPENAI_API_KEY
+```
+
+2. **Build and start services:**
+
+```bash
+docker-compose up --build
+```
+
+3. **Access the application:**
+
+- Frontend (Streamlit): http://localhost:8501
+- Backend API: http://localhost:5050
+- API Documentation: http://localhost:5050/docs
+
+### Development Mode
+
+For development with hot-reload:
+
+```bash
+docker-compose up --build
+```
+
+The `docker-compose.override.yml` file enables:
+- Source code volume mounting for hot-reload
+- Development environment configuration
+
+### Production Deployment
+
+For production deployment:
+
+```bash
+docker-compose --profile production up --build -d
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `APP_ENV` | Environment (development/production) | development |
+| `OPENAI_API_KEY` | OpenAI API key for LLM services | Required |
+| `BACKEND_PORT` | Backend service port | 5050 |
+| `FRONTEND_PORT` | Frontend service port | 8501 |
+
+### Docker Compose Commands
+
+```bash
+# Start services
+docker-compose up
+
+# Start services in detached mode
+docker-compose up -d
+
+# Stop services
+docker-compose down
+
+# View logs
+docker-compose logs -f
+
+# Rebuild and restart
+docker-compose up --build --force-recreate
+
+# Execute commands in container
+docker-compose exec backend bash
+docker-compose exec frontend bash
+```
