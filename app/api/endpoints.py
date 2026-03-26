@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Request, BackgroundTasks, File, Form, UploadFile, status
+from fastapi import APIRouter, Request, BackgroundTasks, File, Form, UploadFile, status, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
 
 from app.config.settings import settings
@@ -140,19 +140,17 @@ async def get_image(job_id: str, image_type: str, filename: str) -> FileResponse
     elif image_type == "variant":
         base_dir = settings.storage.output_dir
     else:
-        raise JSONResponse(
+        raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "detail": f"Invalid image_type: {image_type}. Must be 'upload' or 'variant'"
-            },
+            detail=f"Invalid image_type: {image_type}. Must be 'upload' or 'variant'"
         )
 
     image_path = Path(base_dir) / job_id / filename
 
     if not image_path.exists():
-        raise JSONResponse(
+        raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            content={"detail": f"Image not found: {job_id}/{image_type}/{filename}"},
+            detail=f"Image not found: {job_id}/{image_type}/{filename}"
         )
 
     return FileResponse(
