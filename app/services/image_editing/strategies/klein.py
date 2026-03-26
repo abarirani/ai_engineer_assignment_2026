@@ -7,8 +7,8 @@ import torch
 from diffusers import Flux2KleinPipeline
 from PIL import Image
 
-from ..parameters import EditParameters
-from ..strategy import ImageEditResult, ImageEditingStrategy, ModelInfo
+from app.services.image_editing.parameters import EditParameters
+from app.services.image_editing.strategy import ImageEditResult, ImageEditingStrategy, ModelInfo
 
 logger = logging.getLogger(__name__)
 
@@ -88,9 +88,6 @@ class KleinEditingStrategy(ImageEditingStrategy):
         self._ensure_initialized()
 
         try:
-            # Convert to RGB if necessary
-            rgb_image = image.convert("RGB")
-
             # Create generator with seed
             generator = torch.Generator(device=self.device).manual_seed(
                 parameters.seed if parameters.seed is not None else 0
@@ -98,10 +95,10 @@ class KleinEditingStrategy(ImageEditingStrategy):
 
             # Execute the edit
             result = self.pipeline(
-                image=rgb_image,
+                image=image,
                 prompt=prompt,
-                height=parameters.height or rgb_image.height,
-                width=parameters.width or rgb_image.width,
+                height=parameters.height or image.height,
+                width=parameters.width or image.width,
                 guidance_scale=parameters.guidance_scale,
                 num_inference_steps=parameters.num_inference_steps,
                 generator=generator,
@@ -117,7 +114,7 @@ class KleinEditingStrategy(ImageEditingStrategy):
                     "guidance_scale": parameters.guidance_scale,
                     "inference_steps": parameters.num_inference_steps,
                     "seed": parameters.seed,
-                    "input_size": (rgb_image.width, rgb_image.height),
+                    "input_size": (image.width, image.height),
                     "output_size": (edited_image.width, edited_image.height),
                 },
             )

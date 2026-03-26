@@ -52,10 +52,6 @@ class OpenAICompatibleStrategy(LLMStrategy):
         if not llm_config.enabled:
             return False
 
-        # Check required fields
-        if not llm_config.api_key:
-            return False
-
         if not llm_config.base_url:
             return False
 

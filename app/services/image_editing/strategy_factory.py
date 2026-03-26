@@ -7,9 +7,10 @@ import torch
 
 from app.config.settings import ImageEditingSettings
 
-from .strategy import ImageEditingStrategy
-from .strategies.klein import KleinEditingStrategy
-from .strategies.mock import MockEditingStrategy
+from app.services.image_editing.strategy import ImageEditingStrategy
+from app.services.image_editing.strategies.gemini import GeminiEditingStrategy
+from app.services.image_editing.strategies.klein import KleinEditingStrategy
+from app.services.image_editing.strategies.mock import MockEditingStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class ImageEditingStrategyFactory:
     _strategies: Dict[str, Type[ImageEditingStrategy]] = {
         "klein": KleinEditingStrategy,
         "mock": MockEditingStrategy,
+        "gemini": GeminiEditingStrategy,
     }
 
     @classmethod
@@ -102,6 +104,11 @@ class ImageEditingStrategyFactory:
         # Handle mock strategy separately as it has different constructor parameters
         if settings.strategy == "mock":
             strategy = strategy_class()
+        elif settings.strategy == "gemini":
+            # Gemini uses API key instead of model path
+            strategy = strategy_class(
+                model_name=settings.model_path,
+            )
         else:
             strategy = strategy_class(
                 model_path=settings.model_path,

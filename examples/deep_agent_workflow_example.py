@@ -7,8 +7,12 @@ image variants based on recommendations and brand guidelines.
 """
 
 import asyncio
+import json
+from pathlib import Path
+
 from app.utils import generate_unique_id
 from app.agents.deep_agent_workflow import DeepAgentWorkflow
+from app.config.settings import settings
 from app.models.schemas import BrandGuidelines, ProcessRequest, Recommendation, RecommendationType
 
 
@@ -22,7 +26,7 @@ async def main():
 
     # Example 1: Basic job with a single recommendation
     print("=" * 60)
-    print("Basic job with 3 recommendations and 1 brand guideline")
+    print("Basic job with 3 recommendations")
     print("=" * 60)
 
     job_id = generate_unique_id()
@@ -62,15 +66,21 @@ async def main():
     }
 
     result = await workflow.run_workflow(job_id=job_id, job=job)
-    print(f"Job ID: {result['job_id']}")
-    print(f"Status: {result['status']}")
-    print(f"Number of variants generated: {len(result['variants'])}")
-    for variant in result["variants"]:
-        print(
-            f"  - Recommendation {variant['recommendation_id']}: "
-            f"score={variant['evaluation_score']:.2f}, "
-            f"iterations={variant['iterations']}"
-        )
+    print(f"Workflow status: {result}")
+
+    if result == "success":
+        # Read the actual results from report.json
+        report_path = Path(settings.storage.output_dir) / job_id / "report.json"
+        report = json.loads(report_path.read_text())
+
+        print(f"Job ID: {report.get('job_id', job_id)}")
+        print(f"Number of variants generated: {len(report.get('variants', []))}")
+        for variant in report.get('variants', []):
+            print(
+                f"  - Recommendation {variant.get('recommendation_id')}: "
+                f"score={variant.get('evaluation_score', 0):.2f}, "
+                f"iterations={variant.get('iterations', 0)}"
+            )
 
 
 if __name__ == "__main__":

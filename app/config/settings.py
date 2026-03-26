@@ -131,7 +131,6 @@ class LLMSettings(BaseSettings):
 
     enabled: bool = Field(default=False, description="Whether LLM is enabled")
     provider: str = Field(default="openai_compatible", description="LLM provider type")
-    api_key: str = Field(default="", description="API key for LLM provider")
     base_url: str = Field(
         default="http://localhost:11434/v1", description="Base URL for LLM API"
     )
@@ -170,11 +169,11 @@ class ImageEditingSettings(BaseSettings):
 
     enabled: bool = Field(default=True, description="Whether image editing is enabled")
     strategy: str = Field(
-        default="klein", description="Editing strategy type (e.g., 'klein')"
+        default="klein", description="Editing strategy type (e.g., 'klein', 'gemini')"
     )
     model_path: str = Field(
         default="black-forest-labs/FLUX.2-klein-4B",
-        description="Path to the image editing model",
+        description="Path to the image editing model or model name for API-based strategies",
     )
     device: str = Field(
         default="auto",

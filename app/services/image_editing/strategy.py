@@ -2,12 +2,11 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, Any, Optional
+from typing import Dict, Any, Optional
 
 from PIL import Image
 
-if TYPE_CHECKING:
-    from .parameters import EditParameters
+from app.services.image_editing.parameters import EditParameters
 
 
 @dataclass
