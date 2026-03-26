@@ -124,40 +124,13 @@ class DeepAgentWorkflow:
         request = ProcessRequest.model_validate(job["request"])
         image_path = job["image_path"]
 
-        recommendations_text = "\n".join(
-            f"- [{rec.type.value}] {rec.title}: {rec.description}"
-            for rec in request.recommendations
-        )
-
-        brand_guidelines_text = ""
-        if request.brand_guidelines:
-            bg = request.brand_guidelines
-            guidelines_parts = ["Brand Guidelines:"]
-
-            if bg.protected_regions:
-                guidelines_parts.append("Protected Regions:")
-                guidelines_parts.extend(
-                    f"- {region}" for region in bg.protected_regions
-                )
-
-            if bg.typography:
-                guidelines_parts.append(f"Typography: {bg.typography}")
-
-            if bg.aspect_ratio:
-                guidelines_parts.append(f"Aspect Ratio: {bg.aspect_ratio}")
-
-            if bg.brand_elements:
-                guidelines_parts.append(f"Brand Elements: {bg.brand_elements}")
-
-            brand_guidelines_text = "\n".join(guidelines_parts)
-
         template_path = Path(settings.prompts.deep_agent_user_message)
         env = Environment(loader=FileSystemLoader(str(template_path.parent)))
         template = env.get_template(template_path.name)
         return template.render(
             image_path=image_path,
-            recommendations_text=recommendations_text,
-            brand_guidelines_text=brand_guidelines_text,
+            recommendations=request.recommendations,
+            brand_guidelines=request.brand_guidelines,
         )
 
     def _generate_markdown_from_messages(self, messages, job_id: str, output_dir: str):
@@ -174,6 +147,38 @@ class DeepAgentWorkflow:
             parts = []
             tool_calls_processed = False
 
+            def format_tool_call_args(
+                args: Dict[str, Any], indent_level: int = 0
+            ) -> str:
+                """Format tool call arguments with smart rendering based on content type."""
+                formatted_parts = []
+
+                for key, value in args.items():
+                    if key == "description" and isinstance(value, str):
+                        # Render description as markdown (it contains markdown content)
+                        formatted_parts.append(f"\n#### `{key}`\n")
+                        formatted_parts.append(value)
+                    elif isinstance(value, dict):
+                        # Nested dict: render as JSON code block
+                        formatted_parts.append(f"\n#### `{key}`\n")
+                        formatted_parts.append(
+                            "```json\n" + json.dumps(value, indent=2) + "\n```\n"
+                        )
+                    elif isinstance(value, list):
+                        # List: render as bullet points or JSON code block
+                        formatted_parts.append(f"\n#### `{key}`\n")
+                        if all(isinstance(v, str) for v in value):
+                            formatted_parts.append("\n".join(f"- `{v}`" for v in value))
+                        else:
+                            formatted_parts.append(
+                                "```json\n" + json.dumps(value, indent=2) + "\n```\n"
+                            )
+                    else:
+                        # Simple values: render inline
+                        formatted_parts.append(f"- **{key}:** `{value}`\n")
+
+                return "\n".join(formatted_parts)
+
             # Handle main content
             if isinstance(message.content, str):
                 parts.append(message.content)
@@ -183,9 +188,11 @@ class DeepAgentWorkflow:
                     if item.get("type") == "text":
                         parts.append(item["text"])
                     elif item.get("type") == "tool_use":
-                        parts.append(f"\n🔧 Tool Call: {item['name']}")
-                        parts.append(f"   Args: {json.dumps(item['input'], indent=2)}")
-                        parts.append(f"   ID: {item.get('id', 'N/A')}")
+                        parts.append(f"\n### 🔧 Tool Call: `{item['name']}`\n")
+                        parts.append(f"**ID:** `{item.get('id', 'N/A')}`\n")
+                        parts.append("\n**Arguments:**\n")
+                        parts.append(format_tool_call_args(item["input"]))
+                        parts.append("\n")
                         tool_calls_processed = True
             else:
                 parts.append(str(message.content))
@@ -197,9 +204,11 @@ class DeepAgentWorkflow:
                 and message.tool_calls
             ):
                 for tool_call in message.tool_calls:
-                    parts.append(f"\n🔧 Tool Call: {tool_call['name']}")
-                    parts.append(f"   Args: {json.dumps(tool_call['args'], indent=2)}")
-                    parts.append(f"   ID: {tool_call['id']}")
+                    parts.append(f"\n### 🔧 Tool Call: `{tool_call['name']}`\n")
+                    parts.append(f"**ID:** `{tool_call['id']}`\n")
+                    parts.append("\n**Arguments:**\n")
+                    parts.append(format_tool_call_args(tool_call["args"]))
+                    parts.append("\n")
 
             return "\n".join(parts)
 

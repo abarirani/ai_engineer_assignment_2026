@@ -93,6 +93,8 @@ subagents:
       - Tool selection rationale
       - Parameter recommendations
       - Priority ordering
+
+      **DO NOT WRITE YOUR RESPONSE IN JSON FORMAT**
     tools: []
 
   editor:
@@ -111,6 +113,8 @@ subagents:
       
       ## Tools
       - execute_edit(prompt, image_path, priority)
+
+      **DO NOT WRITE YOUR RESPONSE IN JSON FORMAT**
     tools:
       - execute_edit
 
@@ -134,6 +138,8 @@ subagents:
       
       ## Tools
       - evaluate_variant(variant_path, recommendation, brand_guidelines)
+
+      **DO NOT WRITE YOUR RESPONSE IN JSON FORMAT**
     tools:
       - evaluate_variant
 
@@ -154,6 +160,8 @@ subagents:
       - Increase guidance_scale for brand compliance
       - Refine prompt specificity for recommendation adherence
       - Adjust inference_steps for quality vs speed tradeoff
+
+      **DO NOT WRITE YOUR RESPONSE IN JSON FORMAT**
     tools: []
 
 # Image Editing Configuration

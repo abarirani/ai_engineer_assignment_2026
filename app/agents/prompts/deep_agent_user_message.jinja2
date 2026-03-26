@@ -1,13 +1,52 @@
-Process the following image editing task:
+Process the following image editing task following the recommendations and brand guidelines:
 
 Input Image: {{ image_path }}
 
-Recommendations:
-{{ recommendations_text }}
+## Recommendations
 
-{% if brand_guidelines_text %}
-{{ brand_guidelines_text }}
+{% for rec in recommendations %}
+### {{ rec.title }}
+
+**Type:** {{ rec.type.value | replace('_', ' ') | title }}
+
+**ID:** `{{ rec.id }}`
+
+{{ rec.description }}
+
+{% endfor %}
+
+---
+
+{% if brand_guidelines %}
+## Brand Guidelines
+
+{% if brand_guidelines.protected_regions %}
+### Protected Regions
+{% for region in brand_guidelines.protected_regions %}
+- {{ region }}
+{% endfor %}
 {% endif %}
+
+{% if brand_guidelines.typography %}
+### Typography
+
+{{ brand_guidelines.typography }}
+{% endif %}
+
+{% if brand_guidelines.aspect_ratio %}
+### Aspect Ratio
+
+{{ brand_guidelines.aspect_ratio }}
+{% endif %}
+
+{% if brand_guidelines.brand_elements %}
+### Brand Elements
+
+{{ brand_guidelines.brand_elements }}
+{% endif %}
+{% endif %}
+
+---
 
 Generate variants for each recommendation.
 Return the results in a structured format with recommendation_id, variant_path, and evaluation_score for each variant.
