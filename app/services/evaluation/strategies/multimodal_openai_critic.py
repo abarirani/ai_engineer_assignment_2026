@@ -9,7 +9,7 @@ from PIL import Image
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 
-from app.config.settings import settings
+from app.config.settings import EvaluationSettings
 from app.services.evaluation.strategy import EvaluationResult, EvaluationStrategy
 
 logger = logging.getLogger(__name__)
@@ -23,14 +23,13 @@ class OpenAICompatibleMultimodalCriticStrategy(EvaluationStrategy):
     with the evaluation prompt.
     """
 
-    def __init__(self):
+    def __init__(self, evaluation_settings: EvaluationSettings):
         """Initialize the multimodal critic strategy.
 
         Args:
-            llm_strategy: Optional LLM strategy. If not provided, uses
-                the default from settings.
+            evaluation_settings: EvaluationSettings object containing provider configuration.
         """
-        self._settings = settings.evaluation
+        self._settings = evaluation_settings
         self._llm_instance: Any = None
 
     def _get_llm(self) -> Any:
@@ -110,7 +109,7 @@ class OpenAICompatibleMultimodalCriticStrategy(EvaluationStrategy):
             True if configuration is valid, False otherwise.
         """
         try:
-            eval_config = self._settings.evaluation
+            eval_config = self._settings
 
             # Check base_url
             if not eval_config.base_url or not isinstance(eval_config.base_url, str):
@@ -118,7 +117,9 @@ class OpenAICompatibleMultimodalCriticStrategy(EvaluationStrategy):
                 return False
 
             # Check model_name
-            if not eval_config.model_name or not isinstance(eval_config.model_name, str):
+            if not eval_config.model_name or not isinstance(
+                eval_config.model_name, str
+            ):
                 logger.error("Evaluation model_name is not configured properly")
                 return False
 

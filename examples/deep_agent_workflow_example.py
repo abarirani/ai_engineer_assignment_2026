@@ -13,13 +13,23 @@ from pathlib import Path
 from app.utils import generate_unique_id
 from app.agents.deep_agent_workflow import DeepAgentWorkflow
 from app.config.settings import settings
-from app.models.schemas import BrandGuidelines, ProcessRequest, Recommendation, RecommendationType
+from app.models.schemas import (
+    BrandGuidelines,
+    ProcessRequest,
+    Recommendation,
+    RecommendationType,
+)
 
 
 async def main():
     """Example usage of DeepAgentWorkflow.process_job()."""
-    # Initialize the DeepAgentWorkflow
-    workflow = DeepAgentWorkflow()
+    # Initialize the DeepAgentWorkflow with required settings
+    workflow = DeepAgentWorkflow(
+        llm_settings=settings.llm,
+        subagents_settings=settings.subagents,
+        storage_settings=settings.storage,
+        prompt_settings=settings.prompts,
+    )
 
     # Define the image path
     image_path = "data/input/creative_1.png"
@@ -55,12 +65,12 @@ async def main():
             brand_guidelines=BrandGuidelines(
                 protected_regions=[
                     "Do not modify or remove the brand logo",
-                    "Do not alter the model's face"
+                    "Do not alter the model's face",
                 ],
                 typography="Maintain existing font style and hierarchy for all text elements",
                 aspect_ratio="Maintain original aspect ratio (1572x1720)",
-                brand_elements="Ensure logo remains visible and legible at all times"
-            )
+                brand_elements="Ensure logo remains visible and legible at all times",
+            ),
         ),
         "image_path": image_path,
     }
@@ -75,7 +85,7 @@ async def main():
 
         print(f"Job ID: {report.get('job_id', job_id)}")
         print(f"Number of variants generated: {len(report.get('variants', []))}")
-        for variant in report.get('variants', []):
+        for variant in report.get("variants", []):
             print(
                 f"  - Recommendation {variant.get('recommendation_id')}: "
                 f"score={variant.get('evaluation_score', 0):.2f}, "

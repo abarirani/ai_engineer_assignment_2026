@@ -5,7 +5,6 @@ Environment selection is done via APP_ENV environment variable.
 """
 
 import os
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -307,7 +306,6 @@ class Settings(BaseSettings):
         return (lambda: yaml_config,)
 
 
-@lru_cache
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()

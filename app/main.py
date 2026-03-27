@@ -44,7 +44,14 @@ async def lifespan(app: FastAPI):
     LangChainInstrumentor().instrument()
     logger.info("LangChain instrumentation initialized")
 
-    app.state.workflow_service = WorkflowService()
+    app.state.workflow_service = WorkflowService(
+        storage_settings=settings.storage,
+        db_settings=settings.database,
+        processing_settings=settings.processing,
+        llm_settings=settings.llm,
+        prompt_settings=settings.prompts,
+        subagents_settings=settings.subagents
+    )
 
     logger.info("Application startup complete")
 

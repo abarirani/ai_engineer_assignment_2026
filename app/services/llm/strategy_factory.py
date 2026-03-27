@@ -54,7 +54,7 @@ class LLMStrategyFactory:
             )
 
         logger.debug(f"Creating LLM strategy for provider: {settings.provider}")
-        return strategy_class()
+        return strategy_class(settings)
 
     @classmethod
     def register_strategy(

@@ -19,7 +19,7 @@ from typing import Any, Dict
 from jinja2 import Environment, FileSystemLoader
 
 from app.agents.orchestrator import create_orchestrator
-from app.config.settings import settings
+from app.config.settings import LLMSettings, SubagentsSettings, StorageSettings, PromptsSettings
 from app.services.llm.strategy_factory import LLMStrategyFactory
 from app.agents.tools import (  # noqa: F401
     execute_edit,
@@ -38,13 +38,22 @@ class DeepAgentWorkflow:
         _llm_strategy: The LLM strategy for model invocation.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        llm_settings: LLMSettings,
+        subagents_settings: SubagentsSettings,
+        storage_settings: StorageSettings,
+        prompt_settings: PromptsSettings,
+    ):
         """Initialize the Deep Agent workflow.
 
         Args:
             llm_strategy: The LLM strategy for model invocation.
         """
-        self._llm_strategy = LLMStrategyFactory.create_strategy(settings.llm)
+        self._subagents_settings = subagents_settings
+        self._storage_settings = storage_settings
+        self._prompt_settings = prompt_settings
+        self._llm_strategy = LLMStrategyFactory.create_strategy(llm_settings)
         logger.debug("DeepAgentWorkflow initialized")
 
     async def run_workflow(self, job_id: str, job: Dict[str, Any]) -> str:
@@ -70,7 +79,7 @@ class DeepAgentWorkflow:
         user_message = self._build_user_message(job)
 
         # Create the Deep Agent with our tools
-        subagents = settings.subagents.to_list()
+        subagents = self._subagents_settings.to_list()
         for subagent in subagents:
             if subagent["model"] == "":
                 subagent["model"] = self._llm_strategy.get_llm()
@@ -94,14 +103,14 @@ class DeepAgentWorkflow:
 
         # Store results in the job folder
         self._generate_markdown_from_messages(
-            result["messages"], job_id, settings.storage.output_dir
+            result["messages"], job_id, self._storage_settings.output_dir
         )
-        self._store_result_json(result, job_id, settings.storage.output_dir)
+        self._store_result_json(result, job_id, self._storage_settings.output_dir)
 
         logger.debug(f"Deep Agent workflow completed for job {job_id}")
 
         # Check if report.json contains valid non-empty JSON
-        return self._check_report_json(job_id, settings.storage.output_dir)
+        return self._check_report_json(job_id, self._storage_settings.output_dir)
 
     def _build_system_prompt(self) -> str:
         """Build the system prompt for the Deep Agent.
@@ -109,7 +118,7 @@ class DeepAgentWorkflow:
         Returns:
             System prompt string.
         """
-        prompt_path = Path(settings.prompts.deep_agent_system)
+        prompt_path = Path(self._prompt_settings.deep_agent_system)
         return prompt_path.read_text()
 
     def _build_user_message(self, job: Dict[str, Any]) -> str:
@@ -124,7 +133,7 @@ class DeepAgentWorkflow:
         request = ProcessRequest.model_validate(job["request"])
         image_path = job["image_path"]
 
-        template_path = Path(settings.prompts.deep_agent_user_message)
+        template_path = Path(self._prompt_settings.deep_agent_user_message)
         env = Environment(loader=FileSystemLoader(str(template_path.parent)))
         template = env.get_template(template_path.name)
         return template.render(

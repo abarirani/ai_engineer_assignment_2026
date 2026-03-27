@@ -6,7 +6,9 @@ from typing import Dict, Type
 from app.config.settings import EvaluationSettings
 
 from app.services.evaluation.strategy import EvaluationStrategy
-from app.services.evaluation.strategies.multimodal_openai_critic import OpenAICompatibleMultimodalCriticStrategy
+from app.services.evaluation.strategies.multimodal_openai_critic import (
+    OpenAICompatibleMultimodalCriticStrategy,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +53,7 @@ class EvaluationStrategyFactory:
             )
 
         logger.debug(f"Creating evaluation strategy for provider: {settings.provider}")
-        return strategy_class()
+        return strategy_class(settings)
 
     @classmethod
     def register_strategy(
