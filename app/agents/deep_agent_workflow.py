@@ -17,14 +17,21 @@ from pathlib import Path
 from typing import Any, Dict
 
 from jinja2 import Environment, FileSystemLoader
-
 from app.agents.orchestrator import create_orchestrator
-from app.config.settings import LLMSettings, SubagentsSettings, StorageSettings, PromptsSettings
+from app.config.settings import (
+    LLMSettings,
+    SubagentsSettings,
+    StorageSettings,
+    PromptsSettings,
+)
 from app.services.llm.strategy_factory import LLMStrategyFactory
+from app.services.memory_service import memory_services, MemoryService
 from app.agents.tools import (  # noqa: F401
     execute_edit,
     evaluate_variant,
     generate_report,
+    get_memory,
+    update_memory,
 )
 from app.models.schemas import ProcessRequest
 
@@ -86,6 +93,10 @@ class DeepAgentWorkflow:
             for i, tool in enumerate(subagent["tools"]):
                 subagent["tools"][i] = globals()[tool]
 
+        mem_service = MemoryService(
+            job_id=job_id, storage_settings=self._storage_settings
+        )
+        memory_services[job_id] = mem_service
         agent = create_orchestrator(
             tools=[generate_report],
             system_prompt=system_prompt,
@@ -107,6 +118,10 @@ class DeepAgentWorkflow:
         )
         self._store_result_json(result, job_id, self._storage_settings.output_dir)
 
+        # Dump memory before cleanup
+        mem_service.dump_to_json()
+
+        memory_services.pop(job_id, None)
         logger.debug(f"Deep Agent workflow completed for job {job_id}")
 
         # Check if report.json contains valid non-empty JSON
