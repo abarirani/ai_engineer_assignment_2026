@@ -41,25 +41,3 @@ class OpenAICompatibleStrategy(LLMStrategy):
                 temperature=llm_config.temperature,
             )
         return self._llm_instance
-
-    def validate_configuration(self) -> bool:
-        """Validate that the LLM configuration is valid.
-
-        Checks that required configuration values are present.
-
-        Returns:
-            True if configuration is valid, False otherwise.
-        """
-        llm_config = self._settings
-
-        # Check if LLM is enabled
-        if not llm_config.enabled:
-            return False
-
-        if not llm_config.base_url:
-            return False
-
-        if not llm_config.model_name:
-            return False
-
-        return True

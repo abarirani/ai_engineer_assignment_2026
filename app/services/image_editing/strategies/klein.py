@@ -8,7 +8,7 @@ from diffusers import Flux2KleinPipeline
 from PIL import Image
 
 from app.services.image_editing.parameters import EditParameters
-from app.services.image_editing.strategy import ImageEditResult, ImageEditingStrategy, ModelInfo
+from app.services.image_editing.strategy import ImageEditResult, ImageEditingStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -126,52 +126,3 @@ class KleinEditingStrategy(ImageEditingStrategy):
                 success=False,
                 error_message=str(e),
             )
-
-    def get_model_info(self) -> ModelInfo:
-        """Return information about the FLUX.2 [klein] model.
-
-        Returns:
-            ModelInfo with name, version, and capabilities.
-        """
-        return ModelInfo(
-            name="FLUX.2 [klein]",
-            version="4B",
-            max_resolution=(2048, 2048),
-            supported_formats=["PNG", "JPEG", "WEBP"],
-        )
-
-    def validate_parameters(self, parameters: EditParameters) -> bool:
-        """Validate that parameters are within model constraints.
-
-        Args:
-            parameters: The parameters to validate.
-
-        Returns:
-            True if parameters are valid, False otherwise.
-        """
-        info = self.get_model_info()
-
-        # Validate guidance scale
-        if not 0.1 <= parameters.guidance_scale <= 5.0:
-            logger.warning(
-                f"guidance_scale {parameters.guidance_scale} out of range [0.1, 5.0]"
-            )
-            return False
-
-        # Validate inference steps
-        if not 1 <= parameters.num_inference_steps <= 50:
-            logger.warning(
-                f"num_inference_steps {parameters.num_inference_steps} out of range [1, 50]"
-            )
-            return False
-
-        # Validate dimensions
-        width = parameters.width or 64
-        height = parameters.height or 64
-        if width > info.max_resolution[0] or height > info.max_resolution[1]:
-            logger.warning(
-                f"Resolution ({width}x{height}) exceeds max {info.max_resolution}"
-            )
-            return False
-
-        return True

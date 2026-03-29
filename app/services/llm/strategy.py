@@ -35,12 +35,3 @@ class LLMStrategy(ABC):
             The configured LLM client instance (e.g., ChatOpenAI).
         """
         pass
-
-    @abstractmethod
-    def validate_configuration(self) -> bool:
-        """Validate that the LLM configuration is valid.
-
-        Returns:
-            True if configuration is valid, False otherwise.
-        """
-        pass

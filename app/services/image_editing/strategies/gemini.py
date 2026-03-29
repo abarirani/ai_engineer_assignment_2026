@@ -22,8 +22,7 @@ from tenacity import (
 from app.services.image_editing.parameters import EditParameters
 from app.services.image_editing.strategy import (
     ImageEditResult,
-    ImageEditingStrategy,
-    ModelInfo,
+    ImageEditingStrategy
 )
 
 logger = logging.getLogger(__name__)
@@ -171,45 +170,3 @@ class GeminiEditingStrategy(ImageEditingStrategy):
             logger.warning("No image found in response, got text instead")
 
         raise ValueError("No image data found in Gemini API response")
-
-    def get_model_info(self) -> ModelInfo:
-        """Return information about the Gemini model.
-
-        Returns:
-            ModelInfo with name, version, and capabilities.
-        """
-        return ModelInfo(
-            name="Google Gemini",
-            version=self.model_name,
-            max_resolution=(2048, 2048),
-            supported_formats=["PNG", "JPEG", "WEBP"],
-        )
-
-    def validate_parameters(self, parameters: EditParameters) -> bool:
-        """Validate that parameters are within model constraints.
-
-        Args:
-            parameters: The parameters to validate.
-
-        Returns:
-            True if parameters are valid, False otherwise.
-        """
-        info = self.get_model_info()
-
-        # Validate guidance scale (mapped to temperature 0.0-1.0)
-        if not 0.1 <= parameters.guidance_scale <= 5.0:
-            logger.warning(
-                f"guidance_scale {parameters.guidance_scale} out of range [0.1, 5.0]"
-            )
-            return False
-
-        # Validate dimensions
-        width = parameters.width or 64
-        height = parameters.height or 64
-        if width > info.max_resolution[0] or height > info.max_resolution[1]:
-            logger.warning(
-                f"Resolution ({width}x{height}) exceeds max {info.max_resolution}"
-            )
-            return False
-
-        return True
