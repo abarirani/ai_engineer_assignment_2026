@@ -22,7 +22,6 @@ from app.models.schemas import JobStatusEnum
 from app.observability import (
     init_observability_for_job,
     flush_job_traces,
-    shutdown_job_observability,
 )
 from app.models.schemas import ProcessRequest
 from app.config.settings import (
@@ -103,11 +102,11 @@ class WorkflowService:
         """Create a new job.
 
         Args:
-            image (UploadFile): _description_
-            request (ProcessRequest): _description_
+            image (UploadFile): Input image to be edited.
+            request (ProcessRequest): Recommendations and brand guidelines.
 
         Returns:
-            str: _description_
+            str: job_id
         """
         # Generate job ID
         job_id = generate_unique_id()
@@ -196,7 +195,6 @@ class WorkflowService:
             finally:
                 # Flush traces to file and shutdown observability
                 flush_job_traces(job_id)
-                shutdown_job_observability(job_id)
                 logger.info(f"Observability traces flushed for job {job_id}")
 
         finally:

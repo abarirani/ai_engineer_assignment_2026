@@ -239,7 +239,7 @@ def init_observability_for_job(job_id: str, output_dir: str = "data/output") -> 
 
 
 def flush_job_traces(job_id: str) -> bool:
-    """Flush all collected traces for a specific job to file.
+    """Flush all collected traces for a specific job to file and clean up resources.
 
     Args:
         job_id: The job ID whose traces should be flushed.
@@ -248,21 +248,10 @@ def flush_job_traces(job_id: str) -> bool:
         True if flush was successful, False otherwise.
     """
     with _observability_lock:
-        if job_id in _job_exporters:
-            return _job_exporters[job_id].force_flush()
-    return False
+        if job_id not in _job_exporters:
+            return False
 
+        success = _job_exporters[job_id].force_flush()
+        del _job_exporters[job_id]
 
-def shutdown_job_observability(job_id: str) -> None:
-    """Shutdown observability for a specific job and clean up resources.
-
-    This should be called after job processing is complete to ensure
-    all traces are flushed to disk.
-
-    Args:
-        job_id: The job ID whose observability should be shut down.
-    """
-    with _observability_lock:
-        if job_id in _job_exporters:
-            _job_exporters[job_id].force_flush()
-            del _job_exporters[job_id]
+        return success

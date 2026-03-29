@@ -102,7 +102,6 @@ async def test_process_job_agent_invoke_exception_propagates():
                 with (
                     patch("app.services.workflow_service.init_observability_for_job"),
                     patch("app.services.workflow_service.flush_job_traces"),
-                    patch("app.services.workflow_service.shutdown_job_observability"),
                 ):
 
                     await service.process_job("test-job")
@@ -180,9 +179,6 @@ async def test_api_key_error_propagates_to_workflow_service():
                 "app.services.workflow_service.init_observability_for_job"
             ),
             patch("app.services.workflow_service.flush_job_traces"),
-            patch(
-                "app.services.workflow_service.shutdown_job_observability"
-            ),
         ):
             # Process the job - should fail with API key error
             # process_job -> run_workflow -> get_llm -> API key error

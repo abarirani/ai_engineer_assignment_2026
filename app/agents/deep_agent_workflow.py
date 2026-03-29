@@ -118,6 +118,7 @@ class DeepAgentWorkflow:
         # Invoke the agent
         config = {"configurable": {"job_id": f"{job_id}"}}
         try:
+            # Shut down if workflow duration exceeds timeout
             async with asyncio.timeout(
                 self._processing_settings.processing_timeout_seconds
             ):
@@ -138,7 +139,7 @@ class DeepAgentWorkflow:
         mem_service.dump_to_json()
 
         with _memory_services_lock:
-            memory_services.pop(job_id, None)
+            del memory_services[job_id]
         logger.debug(f"Deep Agent workflow completed for job {job_id}")
 
         # Check if report.json contains valid non-empty JSON
