@@ -75,21 +75,3 @@ class SemaphoreManager:
         logger.info(
             f"Job {job_id} released semaphore (current: {self._current_count}/{self._max_concurrent})"
         )
-
-
-_semaphore_manager_instance: SemaphoreManager = None
-
-
-def get_semaphore_manager() -> SemaphoreManager:
-    """Semaphore manager dependency - returns singleton instance.
-
-    Returns:
-        SemaphoreManager instance
-
-    Raises:
-        RuntimeError: If semaphore manager has not been initialized
-    """
-    global _semaphore_manager_instance
-    if _semaphore_manager_instance is None:
-        raise RuntimeError("Semaphore manager not initialized")
-    return _semaphore_manager_instance
