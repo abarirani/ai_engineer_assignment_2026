@@ -15,6 +15,7 @@ import logging
 import json
 from pathlib import Path
 from typing import Any, Dict
+import asyncio
 
 from jinja2 import Environment, FileSystemLoader
 from app.agents.orchestrator import create_orchestrator
@@ -23,6 +24,7 @@ from app.config.settings import (
     SubagentsSettings,
     StorageSettings,
     PromptsSettings,
+    ProcessingSettings,
 )
 from app.services.llm.strategy_factory import LLMStrategyFactory
 from app.services.memory_service import memory_services, MemoryService
@@ -51,6 +53,7 @@ class DeepAgentWorkflow:
         subagents_settings: SubagentsSettings,
         storage_settings: StorageSettings,
         prompt_settings: PromptsSettings,
+        processing_settings: ProcessingSettings,
     ):
         """Initialize the Deep Agent workflow.
 
@@ -61,6 +64,7 @@ class DeepAgentWorkflow:
         self._storage_settings = storage_settings
         self._prompt_settings = prompt_settings
         self._llm_strategy = LLMStrategyFactory.create_strategy(llm_settings)
+        self._processing_settings = processing_settings
         logger.debug("DeepAgentWorkflow initialized")
 
     async def run_workflow(self, job_id: str, job: Dict[str, Any]) -> str:
@@ -108,15 +112,22 @@ class DeepAgentWorkflow:
 
         # Invoke the agent
         config = {"configurable": {"job_id": f"{job_id}"}}
-        result = await agent.ainvoke(
-            {"messages": [{"role": "user", "content": user_message}]}, config=config
-        )
+        try:
+            async with asyncio.timeout(
+                self._processing_settings.processing_timeout_seconds
+            ):
+                result = await agent.ainvoke(
+                    {"messages": [{"role": "user", "content": user_message}]},
+                    config=config,
+                )
 
-        # Store results in the job folder
-        self._generate_markdown_from_messages(
-            result["messages"], job_id, self._storage_settings.output_dir
-        )
-        self._store_result_json(result, job_id, self._storage_settings.output_dir)
+            # Store results in the job folder
+            self._generate_markdown_from_messages(
+                result["messages"], job_id, self._storage_settings.output_dir
+            )
+            self._store_result_json(result, job_id, self._storage_settings.output_dir)
+        except TimeoutError:
+            logger.error("Deep agent invokation timeout.")
 
         # Dump memory before cleanup
         mem_service.dump_to_json()

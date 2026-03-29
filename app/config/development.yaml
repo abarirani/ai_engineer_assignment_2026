@@ -17,5 +17,5 @@ cors:
 # Processing
 processing:
   max_iterations: 5
-  processing_timeout_seconds: 600
+  processing_timeout_seconds: 900
   max_concurrent_jobs: 1

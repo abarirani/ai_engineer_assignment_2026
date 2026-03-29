@@ -88,6 +88,7 @@ class WorkflowService:
                 llm_settings=llm_settings,
                 subagents_settings=subagents_settings,
                 prompt_settings=prompt_settings,
+                processing_settings=processing_settings
             )
             logger.info("Deep Agent workflow initialized successfully")
         except Exception as e:

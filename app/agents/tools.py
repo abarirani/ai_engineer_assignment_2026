@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Tuple
 from pathlib import Path
 import re
+import gc
 
 from PIL import Image
 from langchain_core.runnables import RunnableConfig
@@ -66,6 +67,9 @@ def execute_edit(prompt: str, image_path: str, runtime: ToolRuntime) -> Dict[str
         memory_services[job_id].save_edit_attempt(
             tool_call_id=tool_call_id, prompt=prompt, input_path=result.image_path
         )
+
+        del editor, strategy
+        gc.collect()
 
         return {
             "success": result.success,

@@ -29,7 +29,7 @@ processing:
     - ".jpeg"
     - ".webp"
   max_iterations: 3
-  processing_timeout_seconds: 300
+  processing_timeout_seconds: 900
   max_concurrent_jobs: 1
 
 # Logging
