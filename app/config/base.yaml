@@ -180,8 +180,8 @@ subagents:
 # - mock: Returns random images from output folder (for testing)
 image_editing:
   enabled: true
-  strategy: "klein"  # Options: klein, gemini, mock
-  model_path: "black-forest-labs/FLUX.2-klein-4B"  # For klein: model path (e.g. black-forest-labs/FLUX.2-klein-4B), For gemini: model name (e.g., gemini-3.1-flash-image-preview)
+  strategy: "gemini"  # Options: klein, gemini, mock
+  model_path: "gemini-3.1-flash-image-preview"  # For klein: model path (e.g. black-forest-labs/FLUX.2-klein-4B), For gemini: model name (e.g., gemini-3.1-flash-image-preview)
   device: "auto"  # Options: auto, cuda, cpu (only for klein strategy)
   enable_cpu_offload: true  # Only for klein strategy
   dtype: "bfloat16"  # Options: bfloat16, float16, float32 (only for klein strategy)

@@ -27,7 +27,11 @@ from app.config.settings import (
     ProcessingSettings,
 )
 from app.services.llm.strategy_factory import LLMStrategyFactory
-from app.services.memory_service import memory_services, MemoryService
+from app.services.memory_service import (
+    memory_services,
+    MemoryService,
+    _memory_services_lock,
+)
 from app.agents.tools import (  # noqa: F401
     execute_edit,
     evaluate_variant,
@@ -100,7 +104,8 @@ class DeepAgentWorkflow:
         mem_service = MemoryService(
             job_id=job_id, storage_settings=self._storage_settings
         )
-        memory_services[job_id] = mem_service
+        with _memory_services_lock:
+            memory_services[job_id] = mem_service
         agent = create_orchestrator(
             tools=[generate_report],
             system_prompt=system_prompt,
@@ -132,7 +137,8 @@ class DeepAgentWorkflow:
         # Dump memory before cleanup
         mem_service.dump_to_json()
 
-        memory_services.pop(job_id, None)
+        with _memory_services_lock:
+            memory_services.pop(job_id, None)
         logger.debug(f"Deep Agent workflow completed for job {job_id}")
 
         # Check if report.json contains valid non-empty JSON

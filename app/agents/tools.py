@@ -12,7 +12,10 @@ from langchain_core.runnables import RunnableConfig
 from langchain.tools import ToolRuntime
 
 from app.config.settings import settings
-from app.services.memory_service import memory_services
+from app.services.memory_service import (
+    memory_services,
+    _memory_services_lock,
+)
 from app.services.image_editing.editor import ImageEditor
 from app.services.image_editing.parameters import EditParameters
 from app.services.image_editing.strategy_factory import ImageEditingStrategyFactory
@@ -64,9 +67,12 @@ def execute_edit(prompt: str, image_path: str, runtime: ToolRuntime) -> Dict[str
         result = editor.edit(image, prompt, EditParameters(), output_path=output_path)
 
         # Save to memory using tool_call_id as edit_id
-        memory_services[job_id].save_edit_attempt(
-            tool_call_id=tool_call_id, prompt=prompt, input_path=result.image_path
-        )
+        with _memory_services_lock:
+            mem_service = memory_services.get(job_id)
+        if mem_service:
+            mem_service.save_edit_attempt(
+                tool_call_id=tool_call_id, prompt=prompt, input_path=result.image_path
+            )
 
         del editor, strategy
         gc.collect()
@@ -193,13 +199,16 @@ def update_memory(
 
         edit_id = parse_image_path(variant_path)
 
-        memory_services[job_id].update_edit_evaluation(
-            tool_call_id=edit_id,
-            evaluation={
-                "score": score,
-                "feedback": feedback,
-            },
-        )
+        with _memory_services_lock:
+            mem_service = memory_services.get(job_id)
+        if mem_service:
+            mem_service.update_edit_evaluation(
+                tool_call_id=edit_id,
+                evaluation={
+                    "score": score,
+                    "feedback": feedback,
+                },
+            )
 
         return {
             "success": True,
@@ -230,13 +239,21 @@ def get_memory(runtime: ToolRuntime) -> Dict[str, Any]:
     try:
         job_id = runtime.config["configurable"]["job_id"]
 
+        with _memory_services_lock:
+            mem_service = memory_services.get(job_id)
+        if mem_service:
+            return {
+                "success": True,
+                "memory": {
+                    "job_id": job_id,
+                    "edit_history": mem_service.get_edit_history(),
+                },
+                "error": None,
+            }
         return {
-            "success": True,
-            "memory": {
-                "job_id": job_id,
-                "edit_history": memory_services[job_id].get_edit_history(),
-            },
-            "error": None,
+            "success": False,
+            "memory": None,
+            "error": f"Memory service not found for job {job_id}",
         }
     except Exception as e:
         logger.error(f"Memory retrieval failed: {e}")
