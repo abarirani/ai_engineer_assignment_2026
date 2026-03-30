@@ -18,7 +18,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
     ports:
-      - "${BACKEND_PORT:-5050}:5050"
+      - "${SERVER_PORT:-5050}:5050"
     volumes:
       - ./data/input:/app/data/input
       - ./data/output:/app/data/output

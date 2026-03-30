@@ -20,6 +20,7 @@ COPY . .
 # Create data directories
 RUN mkdir -p data/input data/output
 
+ENV SERVER_PORT=5050
 # Expose port
 EXPOSE ${SERVER_PORT}
 

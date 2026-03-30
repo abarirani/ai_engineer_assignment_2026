@@ -18,7 +18,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-API_BASE_URL = st.secrets.get("api.api_base_url", "http://backend:5050/api/v1")
+API_BASE_URL = st.secrets["api"]["api_base_url"]
 
 
 def get_recommendation_types() -> List[str]:
