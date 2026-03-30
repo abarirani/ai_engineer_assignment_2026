@@ -1,22 +1,18 @@
 """SQLite database module for tracking submitted jobs."""
 
-import shutil
 import sqlite3
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
-# Database path - stored in the frontend directory
-DB_PATH = Path(__file__).parent / "jobs.db"
+# Database path - stored in a dedicated data subdirectory
+DATA_DIR = Path(__file__).parent / "data"
+DB_PATH = DATA_DIR / "jobs.db"
 
 
 def get_connection() -> sqlite3.Connection:
     """Get a database connection with row factory enabled."""
-    # Ensure parent directory exists
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-    # Handle case where Docker created a directory instead of a file
-    if DB_PATH.exists() and DB_PATH.is_dir():
-        shutil.rmtree(DB_PATH)
+    # Ensure data directory exists
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row

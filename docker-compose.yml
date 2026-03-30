@@ -47,7 +47,8 @@ services:
     volumes:
       # Mount Docker-specific secrets file as secrets.toml in container
       - ./frontend/.streamlit/secrets.docker.toml:/app/frontend/.streamlit/secrets.toml
-      - ./frontend/jobs.db:/app/frontend/jobs.db
+      # Mount data directory for persistent database storage
+      - ./frontend/data:/app/frontend/data
     networks:
       - visual-recommendations-network
 
