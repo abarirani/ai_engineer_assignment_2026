@@ -15,16 +15,29 @@ import logging
 import json
 from pathlib import Path
 from typing import Any, Dict
+import asyncio
 
 from jinja2 import Environment, FileSystemLoader
-
 from app.agents.orchestrator import create_orchestrator
-from app.config.settings import settings
+from app.config.settings import (
+    LLMSettings,
+    SubagentsSettings,
+    StorageSettings,
+    PromptsSettings,
+    ProcessingSettings,
+)
 from app.services.llm.strategy_factory import LLMStrategyFactory
+from app.services.memory_service import (
+    memory_services,
+    MemoryService,
+    _memory_services_lock,
+)
 from app.agents.tools import (  # noqa: F401
     execute_edit,
     evaluate_variant,
     generate_report,
+    get_memory,
+    update_memory,
 )
 from app.models.schemas import ProcessRequest
 
@@ -38,13 +51,24 @@ class DeepAgentWorkflow:
         _llm_strategy: The LLM strategy for model invocation.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        llm_settings: LLMSettings,
+        subagents_settings: SubagentsSettings,
+        storage_settings: StorageSettings,
+        prompt_settings: PromptsSettings,
+        processing_settings: ProcessingSettings,
+    ):
         """Initialize the Deep Agent workflow.
 
         Args:
             llm_strategy: The LLM strategy for model invocation.
         """
-        self._llm_strategy = LLMStrategyFactory.create_strategy(settings.llm)
+        self._subagents_settings = subagents_settings
+        self._storage_settings = storage_settings
+        self._prompt_settings = prompt_settings
+        self._llm_strategy = LLMStrategyFactory.create_strategy(llm_settings)
+        self._processing_settings = processing_settings
         logger.debug("DeepAgentWorkflow initialized")
 
     async def run_workflow(self, job_id: str, job: Dict[str, Any]) -> str:
@@ -70,13 +94,18 @@ class DeepAgentWorkflow:
         user_message = self._build_user_message(job)
 
         # Create the Deep Agent with our tools
-        subagents = settings.subagents.to_list()
+        subagents = self._subagents_settings.to_list()
         for subagent in subagents:
             if subagent["model"] == "":
                 subagent["model"] = self._llm_strategy.get_llm()
             for i, tool in enumerate(subagent["tools"]):
                 subagent["tools"][i] = globals()[tool]
 
+        mem_service = MemoryService(
+            job_id=job_id, storage_settings=self._storage_settings
+        )
+        with _memory_services_lock:
+            memory_services[job_id] = mem_service
         agent = create_orchestrator(
             tools=[generate_report],
             system_prompt=system_prompt,
@@ -88,20 +117,33 @@ class DeepAgentWorkflow:
 
         # Invoke the agent
         config = {"configurable": {"job_id": f"{job_id}"}}
-        result = await agent.ainvoke(
-            {"messages": [{"role": "user", "content": user_message}]}, config=config
-        )
+        try:
+            # Shut down if workflow duration exceeds timeout
+            async with asyncio.timeout(
+                self._processing_settings.processing_timeout_seconds
+            ):
+                result = await agent.ainvoke(
+                    {"messages": [{"role": "user", "content": user_message}]},
+                    config=config,
+                )
 
-        # Store results in the job folder
-        self._generate_markdown_from_messages(
-            result["messages"], job_id, settings.storage.output_dir
-        )
-        self._store_result_json(result, job_id, settings.storage.output_dir)
+            # Store results in the job folder
+            self._generate_markdown_from_messages(
+                result["messages"], job_id, self._storage_settings.output_dir
+            )
+            self._store_result_json(result, job_id, self._storage_settings.output_dir)
+        except TimeoutError:
+            logger.error("Deep agent invokation timeout.")
 
+        # Dump memory before cleanup
+        mem_service.dump_to_json()
+
+        with _memory_services_lock:
+            del memory_services[job_id]
         logger.debug(f"Deep Agent workflow completed for job {job_id}")
 
         # Check if report.json contains valid non-empty JSON
-        return self._check_report_json(job_id, settings.storage.output_dir)
+        return self._check_report_json(job_id, self._storage_settings.output_dir)
 
     def _build_system_prompt(self) -> str:
         """Build the system prompt for the Deep Agent.
@@ -109,7 +151,7 @@ class DeepAgentWorkflow:
         Returns:
             System prompt string.
         """
-        prompt_path = Path(settings.prompts.deep_agent_system)
+        prompt_path = Path(self._prompt_settings.deep_agent_system)
         return prompt_path.read_text()
 
     def _build_user_message(self, job: Dict[str, Any]) -> str:
@@ -124,40 +166,13 @@ class DeepAgentWorkflow:
         request = ProcessRequest.model_validate(job["request"])
         image_path = job["image_path"]
 
-        recommendations_text = "\n".join(
-            f"- [{rec.type.value}] {rec.title}: {rec.description}"
-            for rec in request.recommendations
-        )
-
-        brand_guidelines_text = ""
-        if request.brand_guidelines:
-            bg = request.brand_guidelines
-            guidelines_parts = ["Brand Guidelines:"]
-
-            if bg.protected_regions:
-                guidelines_parts.append("Protected Regions:")
-                guidelines_parts.extend(
-                    f"- {region}" for region in bg.protected_regions
-                )
-
-            if bg.typography:
-                guidelines_parts.append(f"Typography: {bg.typography}")
-
-            if bg.aspect_ratio:
-                guidelines_parts.append(f"Aspect Ratio: {bg.aspect_ratio}")
-
-            if bg.brand_elements:
-                guidelines_parts.append(f"Brand Elements: {bg.brand_elements}")
-
-            brand_guidelines_text = "\n".join(guidelines_parts)
-
-        template_path = Path(settings.prompts.deep_agent_user_message)
+        template_path = Path(self._prompt_settings.deep_agent_user_message)
         env = Environment(loader=FileSystemLoader(str(template_path.parent)))
         template = env.get_template(template_path.name)
         return template.render(
             image_path=image_path,
-            recommendations_text=recommendations_text,
-            brand_guidelines_text=brand_guidelines_text,
+            recommendations=request.recommendations,
+            brand_guidelines=request.brand_guidelines,
         )
 
     def _generate_markdown_from_messages(self, messages, job_id: str, output_dir: str):
@@ -174,6 +189,38 @@ class DeepAgentWorkflow:
             parts = []
             tool_calls_processed = False
 
+            def format_tool_call_args(
+                args: Dict[str, Any], indent_level: int = 0
+            ) -> str:
+                """Format tool call arguments with smart rendering based on content type."""
+                formatted_parts = []
+
+                for key, value in args.items():
+                    if key == "description" and isinstance(value, str):
+                        # Render description as markdown (it contains markdown content)
+                        formatted_parts.append(f"\n#### `{key}`\n")
+                        formatted_parts.append(value)
+                    elif isinstance(value, dict):
+                        # Nested dict: render as JSON code block
+                        formatted_parts.append(f"\n#### `{key}`\n")
+                        formatted_parts.append(
+                            "```json\n" + json.dumps(value, indent=2) + "\n```\n"
+                        )
+                    elif isinstance(value, list):
+                        # List: render as bullet points or JSON code block
+                        formatted_parts.append(f"\n#### `{key}`\n")
+                        if all(isinstance(v, str) for v in value):
+                            formatted_parts.append("\n".join(f"- `{v}`" for v in value))
+                        else:
+                            formatted_parts.append(
+                                "```json\n" + json.dumps(value, indent=2) + "\n```\n"
+                            )
+                    else:
+                        # Simple values: render inline
+                        formatted_parts.append(f"- **{key}:** `{value}`\n")
+
+                return "\n".join(formatted_parts)
+
             # Handle main content
             if isinstance(message.content, str):
                 parts.append(message.content)
@@ -183,9 +230,11 @@ class DeepAgentWorkflow:
                     if item.get("type") == "text":
                         parts.append(item["text"])
                     elif item.get("type") == "tool_use":
-                        parts.append(f"\n🔧 Tool Call: {item['name']}")
-                        parts.append(f"   Args: {json.dumps(item['input'], indent=2)}")
-                        parts.append(f"   ID: {item.get('id', 'N/A')}")
+                        parts.append(f"\n### 🔧 Tool Call: `{item['name']}`\n")
+                        parts.append(f"**ID:** `{item.get('id', 'N/A')}`\n")
+                        parts.append("\n**Arguments:**\n")
+                        parts.append(format_tool_call_args(item["input"]))
+                        parts.append("\n")
                         tool_calls_processed = True
             else:
                 parts.append(str(message.content))
@@ -197,9 +246,11 @@ class DeepAgentWorkflow:
                 and message.tool_calls
             ):
                 for tool_call in message.tool_calls:
-                    parts.append(f"\n🔧 Tool Call: {tool_call['name']}")
-                    parts.append(f"   Args: {json.dumps(tool_call['args'], indent=2)}")
-                    parts.append(f"   ID: {tool_call['id']}")
+                    parts.append(f"\n### 🔧 Tool Call: `{tool_call['name']}`\n")
+                    parts.append(f"**ID:** `{tool_call['id']}`\n")
+                    parts.append("\n**Arguments:**\n")
+                    parts.append(format_tool_call_args(tool_call["args"]))
+                    parts.append("\n")
 
             return "\n".join(parts)
 

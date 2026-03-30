@@ -5,8 +5,17 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Request, BackgroundTasks, File, Form, UploadFile, status
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi import (
+    APIRouter,
+    Request,
+    BackgroundTasks,
+    File,
+    Form,
+    UploadFile,
+    status,
+    HTTPException,
+)
+from fastapi.responses import FileResponse
 
 from app.config.settings import settings
 from app.models.schemas import (
@@ -61,28 +70,26 @@ async def process_image(
     try:
         recommendations_data = json.loads(recommendations)
     except json.JSONDecodeError as e:
-        raise JSONResponse(
+        raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"detail": f"Invalid JSON in recommendations: {str(e)}"},
+            detail=f"Invalid JSON in recommendations: {str(e)}",
         )
 
     try:
         brand_guidelines_data = json.loads(brand_guidelines)
     except json.JSONDecodeError as e:
-        raise JSONResponse(
+        raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"detail": f"Invalid JSON in brand_guidelines: {str(e)}"},
+            detail=f"Invalid JSON in brand_guidelines: {str(e)}",
         )
 
     # Validate file type
     file_extension = Path(image.filename).suffix.lower()
     if file_extension not in settings.processing.allowed_file_types:
-        raise JSONResponse(
+        raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "detail": f"Invalid file type: {file_extension}. "
-                f"Allowed types: {', '.join(settings.processing.allowed_file_types)}"
-            },
+            detail=f"Invalid file type: {file_extension}. "
+            f"Allowed types: {', '.join(settings.processing.allowed_file_types)}",
         )
 
     # Build ProcessRequest from parsed data
@@ -140,19 +147,17 @@ async def get_image(job_id: str, image_type: str, filename: str) -> FileResponse
     elif image_type == "variant":
         base_dir = settings.storage.output_dir
     else:
-        raise JSONResponse(
+        raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "detail": f"Invalid image_type: {image_type}. Must be 'upload' or 'variant'"
-            },
+            detail=f"Invalid image_type: {image_type}. Must be 'upload' or 'variant'",
         )
 
     image_path = Path(base_dir) / job_id / filename
 
     if not image_path.exists():
-        raise JSONResponse(
+        raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            content={"detail": f"Image not found: {job_id}/{image_type}/{filename}"},
+            detail=f"Image not found: {job_id}/{image_type}/{filename}",
         )
 
     return FileResponse(
@@ -182,9 +187,9 @@ async def get_job_status(request: Request, job_id: str) -> JobStatus:
     workflow_service = request.app.state.workflow_service
     job = await workflow_service.get_job_status(job_id)
     if not job:
-        raise JSONResponse(
+        raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            content={"detail": f"Job not found: {job_id}"},
+            detail=f"Job not found: {job_id}",
         )
 
     return JobStatus(
@@ -220,17 +225,15 @@ async def get_job_result(request: Request, job_id: str) -> JobResult:
     workflow_service = request.app.state.workflow_service
     job = await workflow_service.get_job_status(job_id)
     if not job:
-        raise JSONResponse(
+        raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            content={"detail": f"Job not found: {job_id}"},
+            detail=f"Job not found: {job_id}",
         )
 
     if job["status"] != JobStatusEnum.COMPLETED:
-        raise JSONResponse(
+        raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "detail": f"Job not completed. Current status: {job['status'].value}"
-            },
+            detail=f"Job not completed. Current status: {job['status'].value}",
         )
 
     # Read report.json
@@ -244,6 +247,12 @@ async def get_job_result(request: Request, job_id: str) -> JobResult:
     messages_path = Path(settings.storage.output_dir) / job_id / "messages.md"
     if messages_path.exists():
         messages_content = messages_path.read_text()
+
+    # Read traces.json
+    trace_content = None
+    trace_path = Path(settings.storage.output_dir) / job_id / "traces.json"
+    if trace_path.exists():
+        trace_content = json.loads(trace_path.read_text())
 
     # Parse variants from report if available
     variants = []
@@ -259,9 +268,7 @@ async def get_job_result(request: Request, job_id: str) -> JobResult:
                     # Find the job_id in the path (it's the directory before the filename)
                     job_id_from_path = path_parts[-2]
                     # Use the new URL format with image_type (relative to API_BASE_URL)
-                    variant_url = (
-                        f"/images/{job_id_from_path}/variant/{filename}"
-                    )
+                    variant_url = f"/images/{job_id_from_path}/variant/{filename}"
                 else:
                     variant_url = local_path
             else:
@@ -283,6 +290,7 @@ async def get_job_result(request: Request, job_id: str) -> JobResult:
         variants=variants,
         report_content=report_content,
         messages_content=messages_content,
+        trace_content=trace_content,
         created_at=job["created_at"],
         completed_at=job["completed_at"],
     )

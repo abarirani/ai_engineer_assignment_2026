@@ -51,14 +51,6 @@ class ImageEditor:
         Returns:
             ImageEditResult containing the edited image or error information.
         """
-        if not self._strategy.validate_parameters(parameters):
-            logger.warning("Invalid parameters for current model")
-            return ImageEditResult(
-                image=None,
-                success=False,
-                error_message="Invalid parameters for current model",
-            )
-
         logger.debug(f"Editing image with prompt: {prompt[:50]}...")
         result = self._strategy.edit_image(image, prompt, parameters)
 

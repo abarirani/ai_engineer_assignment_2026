@@ -29,7 +29,7 @@ processing:
     - ".jpeg"
     - ".webp"
   max_iterations: 3
-  processing_timeout_seconds: 300
+  processing_timeout_seconds: 900
   max_concurrent_jobs: 1
 
 # Logging
@@ -93,6 +93,8 @@ subagents:
       - Tool selection rationale
       - Parameter recommendations
       - Priority ordering
+
+      **DO NOT WRITE YOUR RESPONSE IN JSON FORMAT**
     tools: []
 
   editor:
@@ -111,6 +113,8 @@ subagents:
       
       ## Tools
       - execute_edit(prompt, image_path, priority)
+
+      **DO NOT WRITE YOUR RESPONSE IN JSON FORMAT**
     tools:
       - execute_edit
 
@@ -126,6 +130,7 @@ subagents:
       2. Check brand guideline compliance
       3. Provide numerical score (0.0 - 1.0)
       4. Give actionable feedback for improvement
+      5. Update memory by using the `update_memory` tool
       
       ## Scoring Criteria
       - Recommendation adherence: 50%
@@ -134,8 +139,12 @@ subagents:
       
       ## Tools
       - evaluate_variant(variant_path, recommendation, brand_guidelines)
+      - update_memory(variant_path, score, feedback)
+
+      **DO NOT WRITE YOUR RESPONSE IN JSON FORMAT**
     tools:
       - evaluate_variant
+      - update_memory
 
   refiner:
     description: >
@@ -145,16 +154,24 @@ subagents:
       You are a Refiner Agent for image editing workflows.
       
       ## Your Responsibilities
-      1. Analyze critic feedback
-      2. Identify root causes of low scores
-      3. Adjust prompts for better recommendation adherence
-      4. Modify parameters for improved quality
+      1. Get the history of image edits by using the `get_memory` tool
+      2. Analyze critic feedback
+      3. Identify root causes of low scores
+      4. Adjust prompts for better recommendation adherence
+      5. Modify parameters for improved quality
       
-      ## Adjustment Strategies
-      - Increase guidance_scale for brand compliance
-      - Refine prompt specificity for recommendation adherence
-      - Adjust inference_steps for quality vs speed tradeoff
-    tools: []
+      ## Workflow
+      1. FIRST: Call get_memory() to retrieve complete job history
+      2. Analyze edit_history to understand what has been tried
+      3. Review evaluation scores and feedback
+      4. Propose refined approach based on patterns identified
+      
+      ## Tools
+      - get_memory() - Retrieves complete job memory
+
+      **DO NOT WRITE YOUR RESPONSE IN JSON FORMAT**
+    tools:
+      - get_memory
 
 # Image Editing Configuration
 # Available strategies: klein, gemini, mock

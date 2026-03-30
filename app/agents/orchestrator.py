@@ -1,4 +1,4 @@
-"""Deep Agents come with planning, filesystem, and subagents."""
+"""Deep Agent Orchestrator. Adapted from [deepagents](https://github.com/langchain-ai/deepagents)"""
 
 import logging
 
@@ -9,7 +9,6 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import (
     HumanInTheLoopMiddleware,
     InterruptOnConfig,
-    TodoListMiddleware,
 )
 from langchain.agents.middleware.types import AgentMiddleware
 from langchain.agents.structured_output import ResponseFormat
@@ -26,7 +25,6 @@ from langgraph.types import Checkpointer
 from deepagents._models import resolve_model
 from deepagents.backends import StateBackend
 from deepagents.backends.protocol import BackendFactory, BackendProtocol
-from deepagents.middleware.filesystem import FilesystemMiddleware
 from deepagents.middleware.patch_tool_calls import PatchToolCallsMiddleware
 from deepagents.middleware.skills import SkillsMiddleware
 from deepagents.middleware.subagents import (
@@ -75,14 +73,7 @@ def create_orchestrator(  # noqa: C901, PLR0912  # Complex graph assembly logic 
     !!! warning "Deep agents require a LLM that supports tool calling!"
 
     By default, this agent has access to the following tools:
-
-    - `write_todos`: manage a todo list
-    - `ls`, `read_file`, `write_file`, `edit_file`, `glob`, `grep`: file operations
-    - `execute`: run shell commands
     - `task`: call subagents
-
-    The `execute` tool allows running shell commands if the backend implements `SandboxBackendProtocol`.
-    For non-sandbox backends, the `execute` tool will return an error message.
 
     Args:
         model: The model to use.
@@ -101,13 +92,7 @@ def create_orchestrator(  # noqa: C901, PLR0912  # Complex graph assembly logic 
                              include=["reasoning.encrypted_content"])`
             and pass the initialized model instance here.
         tools: The tools the agent should have access to.
-
-            In addition to custom tools you provide, deep agents include built-in tools for planning,
-            file management, and subagent spawning.
-        system_prompt: Custom system instructions to prepend before the base deep agent
-            prompt.
-
-            If a string, it's concatenated with the base prompt.
+        system_prompt: Custom system instructions.
         middleware: Additional middleware to apply after the standard middleware stack
             (`TodoListMiddleware`, `FilesystemMiddleware`, `SubAgentMiddleware`,
             `SummarizationMiddleware`, `AnthropicPromptCachingMiddleware`,
@@ -172,8 +157,6 @@ def create_orchestrator(  # noqa: C901, PLR0912  # Complex graph assembly logic 
 
             # Build middleware: base stack + skills (if specified) + user's middleware
             subagent_middleware: list[AgentMiddleware[Any, Any, Any]] = [
-                TodoListMiddleware(),
-                FilesystemMiddleware(backend=backend),
                 create_summarization_middleware(subagent_model, backend),
                 AnthropicPromptCachingMiddleware(unsupported_model_behavior="ignore"),
                 PatchToolCallsMiddleware(),

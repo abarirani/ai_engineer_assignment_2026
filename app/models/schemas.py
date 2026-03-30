@@ -112,6 +112,9 @@ class JobResult(BaseModel):
     messages_content: Optional[str] = Field(
         default=None, description="Content of messages.md"
     )
+    trace_content: Optional[Dict[str, Any]] = Field(
+        default=None, description="Content of trace.json"
+    )
     created_at: datetime = Field(..., description="Job creation timestamp")
     completed_at: Optional[datetime] = Field(
         default=None, description="Job completion timestamp"

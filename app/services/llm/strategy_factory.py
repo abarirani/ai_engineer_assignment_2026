@@ -54,37 +54,4 @@ class LLMStrategyFactory:
             )
 
         logger.debug(f"Creating LLM strategy for provider: {settings.provider}")
-        return strategy_class()
-
-    @classmethod
-    def register_strategy(
-        cls, provider_name: str, strategy_class: Type[LLMStrategy]
-    ) -> None:
-        """Register a new LLM strategy provider.
-
-        This method allows dynamic registration of new LLM strategies
-        at runtime.
-
-        Args:
-            provider_name: The name of the provider (e.g., "openai_compatible").
-            strategy_class: The strategy class to register.
-
-        Raises:
-            ValueError: If the strategy class does not implement LLMStrategy.
-        """
-        if not issubclass(strategy_class, LLMStrategy):
-            raise ValueError(
-                f"Strategy class {strategy_class.__name__} must implement LLMStrategy"
-            )
-
-        cls._strategies[provider_name] = strategy_class
-        logger.info(f"Registered LLM strategy provider: {provider_name}")
-
-    @classmethod
-    def get_available_providers(cls) -> list[str]:
-        """Get a list of available LLM provider names.
-
-        Returns:
-            List of provider names that are currently registered.
-        """
-        return list(cls._strategies.keys())
+        return strategy_class(settings)

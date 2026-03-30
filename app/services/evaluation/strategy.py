@@ -47,12 +47,3 @@ class EvaluationStrategy(ABC):
             EvaluationResult containing score, feedback, and metadata.
         """
         pass
-
-    @abstractmethod
-    def validate_configuration(self) -> bool:
-        """Validate that the evaluation configuration is valid.
-
-        Returns:
-            True if configuration is valid, False otherwise.
-        """
-        pass

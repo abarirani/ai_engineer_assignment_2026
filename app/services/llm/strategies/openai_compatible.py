@@ -4,7 +4,7 @@ from typing import Any
 
 from langchain_openai import ChatOpenAI
 
-from app.config.settings import settings
+from app.config.settings import LLMSettings
 from app.services.llm.strategy import LLMStrategy
 
 
@@ -15,9 +15,13 @@ class OpenAICompatibleStrategy(LLMStrategy):
     the settings from the YAML configuration file.
     """
 
-    def __init__(self):
-        """Initialize the OpenAI-compatible LLM strategy."""
-        self._settings = settings.llm
+    def __init__(self, llm_settings: LLMSettings):
+        """Initialize the OpenAI-compatible LLM strategy.
+
+        Args:
+            llm_settings: LLMSettings object containing provider configuration.
+        """
+        self._settings = llm_settings
         self._llm_instance: Any = None
 
     def get_llm(self) -> ChatOpenAI:
@@ -37,25 +41,3 @@ class OpenAICompatibleStrategy(LLMStrategy):
                 temperature=llm_config.temperature,
             )
         return self._llm_instance
-
-    def validate_configuration(self) -> bool:
-        """Validate that the LLM configuration is valid.
-
-        Checks that required configuration values are present.
-
-        Returns:
-            True if configuration is valid, False otherwise.
-        """
-        llm_config = self._settings.llm
-
-        # Check if LLM is enabled
-        if not llm_config.enabled:
-            return False
-
-        if not llm_config.base_url:
-            return False
-
-        if not llm_config.model_name:
-            return False
-
-        return True

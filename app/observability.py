@@ -8,6 +8,7 @@ before this module is used. See app/main.py for instrumentation setup.
 """
 
 import json
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -56,6 +57,7 @@ class FileSpanExporter(SpanExporter):
         self.file_path = Path(file_path)
         self.job_id = job_id
         self._spans: list[dict] = []
+        self._lock: threading.Lock = threading.Lock()
         # Ensure parent directory exists
         self.file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -107,7 +109,8 @@ class FileSpanExporter(SpanExporter):
             span_job_id = self._extract_job_id_from_span(span)
             if span_job_id == self.job_id:
                 span_data = self._span_to_dict(span)
-                self._spans.append(span_data)
+                with self._lock:
+                    self._spans.append(span_data)
         return SpanExportResult.SUCCESS
 
     def _span_to_dict(self, span: ReadableSpan) -> dict:
@@ -172,8 +175,10 @@ class FileSpanExporter(SpanExporter):
             True if flush was successful.
         """
         try:
+            with self._lock:
+                spans_copy = list(self._spans)
             with open(self.file_path, "w") as f:
-                json.dump({"traces": self._spans}, f, indent=2)
+                json.dump({"traces": spans_copy}, f, indent=2)
             return True
         except Exception:
             return False
@@ -193,6 +198,9 @@ _global_tracer_provider: Optional[TracerProvider] = None
 # Track job-specific exporters for cleanup
 _job_exporters: dict[str, FileSpanExporter] = {}
 
+# Lock for thread-safe access to global observability state
+_observability_lock: threading.Lock = threading.Lock()
+
 
 def init_observability_for_job(job_id: str, output_dir: str = "data/output") -> None:
     """Initialize OpenTelemetry tracing for a specific job with file export.
@@ -209,28 +217,29 @@ def init_observability_for_job(job_id: str, output_dir: str = "data/output") -> 
     """
     global _global_tracer_provider
 
-    # Create shared provider once (if not already initialized)
-    if _global_tracer_provider is None:
-        _global_tracer_provider = TracerProvider(
-            resource=Resource.create({"service.name": "image-editing-agent"})
-        )
-        trace.set_tracer_provider(_global_tracer_provider)
+    with _observability_lock:
+        # Create shared provider once (if not already initialized)
+        if _global_tracer_provider is None:
+            _global_tracer_provider = TracerProvider(
+                resource=Resource.create({"service.name": "image-editing-agent"})
+            )
+            trace.set_tracer_provider(_global_tracer_provider)
 
-    # Create job-specific output path
-    job_output_dir = Path(output_dir) / job_id
-    trace_file_path = job_output_dir / "traces.json"
+        # Create job-specific output path
+        job_output_dir = Path(output_dir) / job_id
+        trace_file_path = job_output_dir / "traces.json"
 
-    # Create job-specific exporter that filters by job_id
-    exporter = FileSpanExporter(str(trace_file_path), job_id)
-    _job_exporters[job_id] = exporter
+        # Create job-specific exporter that filters by job_id
+        exporter = FileSpanExporter(str(trace_file_path), job_id)
+        _job_exporters[job_id] = exporter
 
-    # Add exporter to the global provider
-    span_processor = SimpleSpanProcessor(exporter)
-    _global_tracer_provider.add_span_processor(span_processor)
+        # Add exporter to the global provider
+        span_processor = SimpleSpanProcessor(exporter)
+        _global_tracer_provider.add_span_processor(span_processor)
 
 
 def flush_job_traces(job_id: str) -> bool:
-    """Flush all collected traces for a specific job to file.
+    """Flush all collected traces for a specific job to file and clean up resources.
 
     Args:
         job_id: The job ID whose traces should be flushed.
@@ -238,20 +247,11 @@ def flush_job_traces(job_id: str) -> bool:
     Returns:
         True if flush was successful, False otherwise.
     """
-    if job_id in _job_exporters:
-        return _job_exporters[job_id].force_flush()
-    return False
+    with _observability_lock:
+        if job_id not in _job_exporters:
+            return False
 
-
-def shutdown_job_observability(job_id: str) -> None:
-    """Shutdown observability for a specific job and clean up resources.
-
-    This should be called after job processing is complete to ensure
-    all traces are flushed to disk.
-
-    Args:
-        job_id: The job ID whose observability should be shut down.
-    """
-    if job_id in _job_exporters:
-        _job_exporters[job_id].force_flush()
+        success = _job_exporters[job_id].force_flush()
         del _job_exporters[job_id]
+
+        return success

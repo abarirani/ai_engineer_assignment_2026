@@ -119,27 +119,3 @@ class ImageEditingStrategyFactory:
 
         logger.info(f"Editing strategy '{settings.strategy}' created successfully")
         return strategy
-
-    @classmethod
-    def register_strategy(
-        cls, name: str, strategy_class: Type[ImageEditingStrategy]
-    ) -> None:
-        """Register a new editing strategy.
-
-        This method allows dynamic registration of new strategies at runtime.
-
-        Args:
-            name: The name to use for this strategy in configuration.
-            strategy_class: The strategy class to register.
-        """
-        cls._strategies[name] = strategy_class
-        logger.info(f"Registered editing strategy: {name}")
-
-    @classmethod
-    def get_available_strategies(cls) -> list[str]:
-        """Get a list of available strategy names.
-
-        Returns:
-            list[str]: List of registered strategy names.
-        """
-        return list(cls._strategies.keys())

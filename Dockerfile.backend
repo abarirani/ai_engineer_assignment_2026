@@ -1,13 +1,6 @@
 # Backend Dockerfile for Visual Recommendations Agentic Workflow
 FROM python:3.11-slim
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV PIP_NO_CACHE_DIR=1
-ENV PIP_DISABLE_PIP_VERSION_CHECK=1
-ENV APP_ENV=production
-
 # Set working directory
 WORKDIR /app
 
@@ -17,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
+RUN pip install torch torchvision --extra-index-url https://download.pytorch.org/whl/cpu
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -26,10 +20,7 @@ COPY . .
 # Create data directories
 RUN mkdir -p data/input data/output
 
-# Set server configuration
-ENV SERVER_HOST=0.0.0.0
 ENV SERVER_PORT=5050
-
 # Expose port
 EXPOSE ${SERVER_PORT}
 
@@ -38,4 +29,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:${SERVER_PORT}/health', timeout=5)" || exit 1
 
 # Run the application
-CMD ["uvicorn", "app.main:app", "--host", "${SERVER_HOST}", "--port", "${SERVER_PORT}"]
+CMD uvicorn app.main:app --host ${SERVER_HOST} --port ${SERVER_PORT}

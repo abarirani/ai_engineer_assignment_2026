@@ -2,14 +2,20 @@ import json
 import os
 import logging
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 from pathlib import Path
+import re
+import gc
 
 from PIL import Image
 from langchain_core.runnables import RunnableConfig
 from langchain.tools import ToolRuntime
 
 from app.config.settings import settings
+from app.services.memory_service import (
+    memory_services,
+    _memory_services_lock,
+)
 from app.services.image_editing.editor import ImageEditor
 from app.services.image_editing.parameters import EditParameters
 from app.services.image_editing.strategy_factory import ImageEditingStrategyFactory
@@ -45,22 +51,31 @@ def execute_edit(prompt: str, image_path: str, runtime: ToolRuntime) -> Dict[str
     try:
         # Generate output path from tool call id and job id
         job_id = runtime.config["configurable"]["job_id"]
+        tool_call_id = runtime.tool_call_id
 
         output_dir = Path(settings.storage.output_dir) / job_id
         os.makedirs(output_dir, exist_ok=True)
 
-        output_filename = f"edited_{runtime.tool_call_id}.png"
+        output_filename = f"edited_{tool_call_id}.png"
         output_path = os.path.join(output_dir, output_filename)
 
         logger.debug(f"Editing {image_path} for job {job_id}.")
         image = Image.open(image_path)
 
-        # Get strategy from factory based on configuration
         strategy = ImageEditingStrategyFactory.create_strategy(settings.image_editing)
         editor = ImageEditor(strategy)
         result = editor.edit(image, prompt, EditParameters(), output_path=output_path)
 
-        logger.debug(f"Storing edited image {output_path} for job {job_id}.")
+        # Save to memory using tool_call_id as edit_id
+        with _memory_services_lock:
+            mem_service = memory_services.get(job_id)
+        if mem_service:
+            mem_service.save_edit_attempt(
+                tool_call_id=tool_call_id, prompt=prompt, input_path=result.image_path
+            )
+
+        del editor, strategy
+        gc.collect()
 
         return {
             "success": result.success,
@@ -75,6 +90,7 @@ def execute_edit(prompt: str, image_path: str, runtime: ToolRuntime) -> Dict[str
             "image_path": None,
             "error": str(e),
             "metadata": {},
+            "edit_id": runtime.tool_call_id,
         }
 
 
@@ -118,6 +134,134 @@ def evaluate_variant(prompt: str, variant_path: str) -> str | Dict[str, Any]:
         error_message = f"Evaluation failed: {e}"
         logger.error(error_message, exc_info=True)
         return {"success": False, "score": 0.0, "feedback": error_message}
+
+
+def update_memory(
+    variant_path: str, score: str, feedback: str, runtime: ToolRuntime
+) -> Dict[str, Any]:
+    """Update memory with evaluation results for an edited image variant.
+
+    WHEN TO USE THIS TOOL:
+    - After evaluating an edited image variant using the evaluate_variant tool
+    - To store the critic's score and feedback for future reference and analysis
+    - When the refiner needs to access past evaluations to make informed decisions
+
+    Args:
+        variant_path: Path to the edited image variant that was evaluated.
+            Expected format: data/output/{job_id}/edited_{tool_call_id}.png
+
+        score: The evaluation score returned by the multimodal LLM critic.
+            This is typically a string representation of a numeric score.
+
+        feedback: Detailed feedback from the multimodal LLM critic explaining
+            the evaluation score and providing insights about how well the
+            image meets the specified criteria.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing the result of the memory update:
+            {
+                "success": bool,  # True if memory was updated successfully
+                "error": str | None  # Error message if success is False
+            }
+    """
+
+    def parse_image_path(variant_path: str) -> Tuple[str, str]:
+        """Parse job_id and tool_call_id from an image path.
+
+        Expected format: data/output/{job_id}/edited_{tool_call_id}.png
+
+        Args:
+            image_path: Path to the edited image
+
+        Returns:
+            Tuple of (job_id, tool_call_id)
+
+        Raises:
+            ValueError: If the path doesn't match expected format
+        """
+        path = Path(variant_path)
+        filename = path.stem  # e.g., "edited_xDfgTr74jiKlasw"
+
+        # Extract tool_call_id from filename pattern "edited_{tool_call_id}"
+        match = re.match(r"edited_(.+)", filename)
+        if not match:
+            raise ValueError(
+                f"Filename '{filename}' doesn't match expected pattern 'edited_{{tool_call_id}}'"
+            )
+
+        tool_call_id = match.group(1)
+        return tool_call_id
+
+    try:
+        # Extract job_id from variant_path or memory location
+        # Assuming variant_path is like: data/output/{job_id}/edited_{edit_id}.png
+        job_id = runtime.config["configurable"]["job_id"]
+
+        edit_id = parse_image_path(variant_path)
+
+        with _memory_services_lock:
+            mem_service = memory_services.get(job_id)
+        if mem_service:
+            mem_service.update_edit_evaluation(
+                tool_call_id=edit_id,
+                evaluation={
+                    "score": score,
+                    "feedback": feedback,
+                },
+            )
+
+        return {
+            "success": True,
+        }
+    except Exception as e:
+        logger.error(f"Memory update failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+
+def get_memory(runtime: ToolRuntime) -> Dict[str, Any]:
+    """Retrieve the complete memory for the current job.
+
+    WHEN TO USE THIS TOOL:
+    - When the refiner needs to analyze past edit attempts and evaluations
+    - Before proposing refinements to understand what has been tried
+    - To identify patterns in successful vs failed edits
+
+    Returns:
+        Dict[str, Any]: Complete memory structure with:
+            {
+                "job_id": str,
+                "edit_history": List[Dict],  # All edit attempts with evaluations
+            }
+    """
+    try:
+        job_id = runtime.config["configurable"]["job_id"]
+
+        with _memory_services_lock:
+            mem_service = memory_services.get(job_id)
+        if mem_service:
+            return {
+                "success": True,
+                "memory": {
+                    "job_id": job_id,
+                    "edit_history": mem_service.get_edit_history(),
+                },
+                "error": None,
+            }
+        return {
+            "success": False,
+            "memory": None,
+            "error": f"Memory service not found for job {job_id}",
+        }
+    except Exception as e:
+        logger.error(f"Memory retrieval failed: {e}")
+        return {
+            "success": False,
+            "memory": None,
+            "error": str(e),
+        }
 
 
 def generate_report(

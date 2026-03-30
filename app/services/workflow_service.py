@@ -22,10 +22,16 @@ from app.models.schemas import JobStatusEnum
 from app.observability import (
     init_observability_for_job,
     flush_job_traces,
-    shutdown_job_observability,
 )
 from app.models.schemas import ProcessRequest
-from app.config.settings import settings
+from app.config.settings import (
+    ProcessingSettings,
+    DatabaseSettings,
+    StorageSettings,
+    LLMSettings,
+    SubagentsSettings,
+    PromptsSettings,
+)
 from app.utils import generate_unique_id, save_job_inputs
 
 
@@ -45,17 +51,26 @@ class WorkflowService:
         _deep_agent_workflow: The DeepAgentWorkflow instance.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        storage_settings: StorageSettings,
+        db_settings: DatabaseSettings,
+        processing_settings: ProcessingSettings,
+        llm_settings: LLMSettings,
+        subagents_settings: SubagentsSettings,
+        prompt_settings: PromptsSettings,
+    ) -> None:
         """Initialize the workflow service.
 
         Raises:
             RuntimeError: If workflow initialization fails.
         """
+        self._storage_settings = storage_settings
         self._semaphore_manager = SemaphoreManager(
-            settings.processing.max_concurrent_jobs
+            processing_settings.max_concurrent_jobs
         )
 
-        self._db = JobDatabase(settings.database.path)
+        self._db = JobDatabase(db_settings.path)
 
         # Recover any stale processing jobs from unexpected shutdowns
         recovered_count = self._db.recover_stale_processing_jobs()
@@ -67,7 +82,13 @@ class WorkflowService:
             logger.info("No stale processing jobs found")
 
         try:
-            self._deep_agent_workflow = DeepAgentWorkflow()
+            self._deep_agent_workflow = DeepAgentWorkflow(
+                storage_settings=storage_settings,
+                llm_settings=llm_settings,
+                subagents_settings=subagents_settings,
+                prompt_settings=prompt_settings,
+                processing_settings=processing_settings
+            )
             logger.info("Deep Agent workflow initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize Deep Agent workflow: {e}")
@@ -81,17 +102,17 @@ class WorkflowService:
         """Create a new job.
 
         Args:
-            image (UploadFile): _description_
-            request (ProcessRequest): _description_
+            image (UploadFile): Input image to be edited.
+            request (ProcessRequest): Recommendations and brand guidelines.
 
         Returns:
-            str: _description_
+            str: job_id
         """
         # Generate job ID
         job_id = generate_unique_id()
 
         # Save uploaded image
-        image_path = save_job_inputs(job_id, image, settings.storage.upload_dir)
+        image_path = save_job_inputs(job_id, image, self._storage_settings.upload_dir)
         # URL is relative to API_BASE_URL (which includes /api/v1)
         image_url = f"/images/{job_id}/upload/{Path(image_path).name}"
 
@@ -137,7 +158,7 @@ class WorkflowService:
                 return
 
             # Initialize job-specific observability
-            init_observability_for_job(job_id, settings.storage.output_dir)
+            init_observability_for_job(job_id, self._storage_settings.output_dir)
             logger.info(f"Observability initialized for job {job_id}")
 
             # Update status to PROCESSING via database
@@ -174,7 +195,6 @@ class WorkflowService:
             finally:
                 # Flush traces to file and shutdown observability
                 flush_job_traces(job_id)
-                shutdown_job_observability(job_id)
                 logger.info(f"Observability traces flushed for job {job_id}")
 
         finally:

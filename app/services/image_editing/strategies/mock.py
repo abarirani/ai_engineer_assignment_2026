@@ -13,8 +13,7 @@ from PIL import Image
 from app.services.image_editing.parameters import EditParameters
 from app.services.image_editing.strategy import (
     ImageEditResult,
-    ImageEditingStrategy,
-    ModelInfo,
+    ImageEditingStrategy
 )
 
 logger = logging.getLogger(__name__)
@@ -116,28 +115,3 @@ class MockEditingStrategy(ImageEditingStrategy):
                 success=False,
                 error_message=str(e),
             )
-
-    def get_model_info(self) -> ModelInfo:
-        """Return information about the mock model.
-
-        Returns:
-            ModelInfo with name, version, and capabilities.
-        """
-        return ModelInfo(
-            name="Mock Editor",
-            version="1.0.0",
-            max_resolution=(8192, 8192),
-            supported_formats=["PNG", "JPEG", "WEBP", "GIF", "BMP"],
-        )
-
-    def validate_parameters(self, parameters: EditParameters) -> bool:
-        """Always return True since mock strategy doesn't have constraints.
-
-        Args:
-            parameters: The parameters to validate.
-
-        Returns:
-            True if parameters are valid, False otherwise.
-        """
-        # Mock strategy accepts all parameters
-        return True

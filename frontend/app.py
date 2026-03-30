@@ -18,7 +18,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-API_BASE_URL = st.secrets.get("api.api_base_url", "http://localhost:5050/api/v1")
+API_BASE_URL = st.secrets["api"]["api_base_url"]
 
 
 def get_recommendation_types() -> List[str]:
@@ -356,32 +356,92 @@ def display_job_results(job_id: str) -> None:
         result_data=json.dumps(result),
     )
 
-    # Display input image
+    # Build full URLs for images
+    input_image_url = None
     if result.get("input_image_url"):
-        st.subheader("Input Image")
-        # Prepend API base URL to the image path
-        image_url = (
+        input_image_url = (
             API_BASE_URL + result["input_image_url"]
             if not result["input_image_url"].startswith("http")
             else result["input_image_url"]
         )
-        st.image(image_url)
 
-    # Display variants
-    if result.get("variants"):
-        st.subheader("Generated Variants")
+    variants = result.get("variants", [])
+    if variants:
+        # Build full URLs for variants
+        for variant in variants:
+            variant["full_url"] = (
+                API_BASE_URL + variant["variant_url"]
+                if not variant["variant_url"].startswith("http")
+                else variant["variant_url"]
+            )
 
-        for variant in result["variants"]:
-            with st.expander(
-                f"Variant for: {variant.get('recommendation_id', 'Unknown')}"
-            ):
-                # Prepend API base URL to the variant path
-                variant_url = (
-                    API_BASE_URL + variant["variant_url"]
-                    if not variant["variant_url"].startswith("http")
-                    else variant["variant_url"]
+    # Display side-by-side comparison with variant navigation
+    if input_image_url and variants:
+        st.subheader("Image Comparison")
+
+        # Get selected variant index from session state
+        selected_variant_index = st.session_state.get("selected_variant_index", 0)
+        # Ensure selected index is valid
+        if selected_variant_index >= len(variants):
+            selected_variant_index = 0
+            st.session_state.selected_variant_index = 0
+
+        # Side-by-side comparison
+        comparison_container = st.container()
+        with comparison_container:
+            col1, col2 = st.columns(2, gap="large")
+
+            # Left column: Input image
+            with col1:
+                st.markdown("**Original Image**")
+                st.image(input_image_url, use_container_width=True)
+
+            # Right column: Selected variant with navigation below
+            with col2:
+                selected_variant = variants[selected_variant_index]
+                st.markdown(
+                    f"**Variant {selected_variant_index + 1} of {len(variants)}**",
+                    unsafe_allow_html=True,
                 )
-                st.image(variant_url)
+                st.image(selected_variant["full_url"], use_container_width=True)
+                st.metric(
+                    "Evaluation Score",
+                    f"{selected_variant['evaluation_score']:.2f}/10",
+                )
+                st.metric("Iterations", selected_variant["iterations"])
+
+                # Navigation buttons below variant
+                col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
+                with col_nav1:
+                    if st.button("⬅️ Previous", key=f"prev_{job_id}"):
+                        if selected_variant_index > 0:
+                            st.session_state.selected_variant_index = (
+                                selected_variant_index - 1
+                            )
+                            st.rerun()
+                with col_nav2:
+                    pass  # Empty middle column
+                with col_nav3:
+                    if st.button("Next ➡️", key=f"next_{job_id}"):
+                        if selected_variant_index < len(variants) - 1:
+                            st.session_state.selected_variant_index = (
+                                selected_variant_index + 1
+                            )
+                            st.rerun()
+
+    # Fallback: Display input image only if no variants
+    elif input_image_url:
+        st.subheader("Input Image")
+        st.image(input_image_url, use_container_width=True)
+
+    # Display variants list if exists but no input image
+    elif variants:
+        st.subheader("Generated Variants")
+        for i, variant in enumerate(variants):
+            with st.expander(
+                f"Variant {i + 1} for: {variant.get('recommendation_id', 'Unknown')}"
+            ):
+                st.image(variant["full_url"], use_container_width=True)
                 st.metric("Evaluation Score", f"{variant['evaluation_score']:.2f}/10")
                 st.metric("Iterations", variant["iterations"])
 
@@ -480,27 +540,6 @@ def display_job_history() -> None:
                         )
                         st.image(image_url)
 
-                    # Display variants
-                    if result.get("variants"):
-                        st.subheader("Generated Variants")
-
-                        for variant in result["variants"]:
-                            with st.expander(
-                                f"Variant for: {variant.get('recommendation_id', 'Unknown')}"
-                            ):
-                                # Prepend API base URL to the variant path
-                                variant_url = (
-                                    API_BASE_URL + variant["variant_url"]
-                                    if not variant["variant_url"].startswith("http")
-                                    else variant["variant_url"]
-                                )
-                                st.image(variant_url)
-                                st.metric(
-                                    "Evaluation Score",
-                                    f"{variant['evaluation_score']:.2f}/10",
-                                )
-                                st.metric("Iterations", variant["iterations"])
-
                     # Display report content
                     if result.get("report_content"):
                         with st.expander("Report Details"):
@@ -510,6 +549,11 @@ def display_job_history() -> None:
                     if result.get("messages_content"):
                         with st.expander("Processing Messages"):
                             st.markdown(result["messages_content"])
+
+                    # Display trace content
+                    if result.get("trace_content"):
+                        with st.expander("Processing Trace"):
+                            st.json(result["trace_content"])
                 else:
                     st.warning("Failed to retrieve job results.")
 

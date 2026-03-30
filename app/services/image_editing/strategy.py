@@ -10,23 +10,6 @@ from app.services.image_editing.parameters import EditParameters
 
 
 @dataclass
-class ModelInfo:
-    """Information about the editing model.
-
-    Attributes:
-        name: Human-readable name of the model.
-        version: Version string of the model.
-        max_resolution: Maximum supported resolution as (width, height).
-        supported_formats: List of supported image formats.
-    """
-
-    name: str
-    version: str
-    max_resolution: tuple[int, int]
-    supported_formats: list[str]
-
-
-@dataclass
 class ImageEditResult:
     """Result of an image editing operation.
 
@@ -68,26 +51,5 @@ class ImageEditingStrategy(ABC):
 
         Returns:
             ImageEditResult containing the edited image or error information.
-        """
-        pass
-
-    @abstractmethod
-    def get_model_info(self) -> ModelInfo:
-        """Return information about the model.
-
-        Returns:
-            ModelInfo with name, version, and capabilities.
-        """
-        pass
-
-    @abstractmethod
-    def validate_parameters(self, parameters: "EditParameters") -> bool:
-        """Validate that parameters are within model constraints.
-
-        Args:
-            parameters: The parameters to validate.
-
-        Returns:
-            True if parameters are valid, False otherwise.
         """
         pass
