@@ -30,8 +30,6 @@ services:
       start_period: 10s
     networks:
       - visual-recommendations-network
-    env_file:
-      - .env
 
   # Frontend Streamlit Service
   frontend:
@@ -52,8 +50,6 @@ services:
       - ./frontend/jobs.db:/app/frontend/jobs.db
     networks:
       - visual-recommendations-network
-    env_file:
-      - .env
 
 networks:
   visual-recommendations-network:
