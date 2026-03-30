@@ -1,5 +1,6 @@
 """SQLite database module for tracking submitted jobs."""
 
+import shutil
 import sqlite3
 from pathlib import Path
 from typing import Dict, List, Optional, Any
@@ -15,7 +16,7 @@ def get_connection() -> sqlite3.Connection:
 
     # Handle case where Docker created a directory instead of a file
     if DB_PATH.exists() and DB_PATH.is_dir():
-        DB_PATH.unlink()
+        shutil.rmtree(DB_PATH)
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
