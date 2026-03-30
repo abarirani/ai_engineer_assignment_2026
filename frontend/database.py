@@ -10,6 +10,13 @@ DB_PATH = Path(__file__).parent / "jobs.db"
 
 def get_connection() -> sqlite3.Connection:
     """Get a database connection with row factory enabled."""
+    # Ensure parent directory exists
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    # Handle case where Docker created a directory instead of a file
+    if DB_PATH.exists() and DB_PATH.is_dir():
+        DB_PATH.unlink()
+
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -20,7 +27,8 @@ def init_database() -> None:
     conn = get_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS jobs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 job_id TEXT UNIQUE NOT NULL,
@@ -34,7 +42,8 @@ def init_database() -> None:
                 brand_guidelines TEXT,
                 result_data TEXT
             )
-        """)
+        """
+        )
         conn.commit()
     finally:
         conn.close()
