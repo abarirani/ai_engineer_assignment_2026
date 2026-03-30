@@ -45,7 +45,7 @@ The following settings in [`app/config/development.yaml`](app/config/development
 | `evaluation.base_url` | Evaluation API endpoint | `https://api.openai.com/v1` | Your evaluation endpoint |
 | `evaluation.model_name` | Evaluation model | `gpt-4o` | Your preferred vision-LLM model |
 
-The following environment variables must be set before running the backend:
+The following environment variables must be set before running the backend (see [.env-example](.env.example)):
 
 | Variable | Description | Default |
 |----------|-------------|---------|
