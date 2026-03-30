@@ -15,7 +15,7 @@ from fastapi import (
     status,
     HTTPException,
 )
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import FileResponse
 
 from app.config.settings import settings
 from app.models.schemas import (
@@ -70,28 +70,26 @@ async def process_image(
     try:
         recommendations_data = json.loads(recommendations)
     except json.JSONDecodeError as e:
-        raise JSONResponse(
+        raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"detail": f"Invalid JSON in recommendations: {str(e)}"},
+            detail=f"Invalid JSON in recommendations: {str(e)}",
         )
 
     try:
         brand_guidelines_data = json.loads(brand_guidelines)
     except json.JSONDecodeError as e:
-        raise JSONResponse(
+        raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"detail": f"Invalid JSON in brand_guidelines: {str(e)}"},
+            detail=f"Invalid JSON in brand_guidelines: {str(e)}",
         )
 
     # Validate file type
     file_extension = Path(image.filename).suffix.lower()
     if file_extension not in settings.processing.allowed_file_types:
-        raise JSONResponse(
+        raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "detail": f"Invalid file type: {file_extension}. "
-                f"Allowed types: {', '.join(settings.processing.allowed_file_types)}"
-            },
+            detail=f"Invalid file type: {file_extension}. "
+            f"Allowed types: {', '.join(settings.processing.allowed_file_types)}",
         )
 
     # Build ProcessRequest from parsed data
@@ -189,9 +187,9 @@ async def get_job_status(request: Request, job_id: str) -> JobStatus:
     workflow_service = request.app.state.workflow_service
     job = await workflow_service.get_job_status(job_id)
     if not job:
-        raise JSONResponse(
+        raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            content={"detail": f"Job not found: {job_id}"},
+            detail=f"Job not found: {job_id}",
         )
 
     return JobStatus(
@@ -227,17 +225,15 @@ async def get_job_result(request: Request, job_id: str) -> JobResult:
     workflow_service = request.app.state.workflow_service
     job = await workflow_service.get_job_status(job_id)
     if not job:
-        raise JSONResponse(
+        raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            content={"detail": f"Job not found: {job_id}"},
+            detail=f"Job not found: {job_id}",
         )
 
     if job["status"] != JobStatusEnum.COMPLETED:
-        raise JSONResponse(
+        raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "detail": f"Job not completed. Current status: {job['status'].value}"
-            },
+            detail=f"Job not completed. Current status: {job['status'].value}",
         )
 
     # Read report.json

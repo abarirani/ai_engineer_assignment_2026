@@ -18,7 +18,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-API_BASE_URL = st.secrets.get("api.api_base_url", "http://localhost:5050/api/v1")
+API_BASE_URL = st.secrets.get("api.api_base_url", "http://backend:5050/api/v1")
 
 
 def get_recommendation_types() -> List[str]:
@@ -409,7 +409,7 @@ def display_job_results(job_id: str) -> None:
                     f"{selected_variant['evaluation_score']:.2f}/10",
                 )
                 st.metric("Iterations", selected_variant["iterations"])
-                
+
                 # Navigation buttons below variant
                 col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
                 with col_nav1:
