@@ -35,15 +35,26 @@ The application uses YAML-based configuration files for managing different envir
 - `app/config/development.yaml` - Development environment overrides
 - `app/config/production.yaml` - Production environment overrides
 
-To select a different environment, set the `APP_ENV` environment variable (default: `development`):
+The following settings in [`app/config/development.yaml`](app/config/development.yaml) should be configured to point to an OpenAI-compatible endpoint:
 
-```bash
-export APP_ENV=production
-```
+| Setting | Description | Default | Recommended Value |
+|---------|-------------|---------|------------------------------|
+| `llm.provider` | LLM provider | `openai_compatible` | `openai_compatible` |
+| `llm.base_url` | LLM API endpoint | `https://api.openai.com/v1` | Your LLM endpoint |
+| `llm.model_name` | LLM model | `gpt-4o` | Your preferred model |
+| `evaluation.base_url` | Evaluation API endpoint | `https://api.openai.com/v1` | Your evaluation endpoint |
+| `evaluation.model_name` | Evaluation model | `gpt-4o` | Your preferred vision-LLM model |
 
-4. **Run the server:**
+The following environment variables must be set before running the backend:
 
-The application can be started using the module entry point, which automatically reads the server configuration from the YAML config files:
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENAI_API_KEY` | OpenAI API key for LLM services | Required |
+| `GEMINI_API_KEY` | Gemini API key for Image editing and Vision-LLM services | Required |
+
+4. **Run the backend:**
+
+The backend can be started using the module entry point, which automatically reads the server configuration from the YAML config files:
 
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 5050
@@ -174,31 +185,9 @@ GET /api/v1/images/abc-123/variant/output.png
 
 ### Quick Start
 
-1. **Set environment variables and configure settings:**
+1. **Set environment variables:**
 
-#### Environment Variables
-
-The following environment variables must be set before performing docker compose deployment:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `OPENAI_API_KEY` | OpenAI API key for LLM services | Required |
-| `GEMINI_API_KEY` | Gemini API key for Image editing and Vision-LLM services | Required |
-
-#### Settings
-
-The following settings in [`app/config/production.yaml`](app/config/production.yaml) should be updated for production deployment:
-
-| Setting | Description | Default | Recommended Production Value |
-|---------|-------------|---------|------------------------------|
-| `cors.allow_origins` | Allowed CORS origins | `["https://api.neuronsinc.com"]` | Your production domain(s) |
-| `processing.processing_timeout_seconds` | Timeout per job | `900` (15 min) | `900-1800` |
-| `processing.max_concurrent_jobs` | Concurrent job limit | `20` | Based on available resources |
-| `llm.provider` | LLM provider | `openai_compatible` | `openai_compatible` |
-| `llm.base_url` | LLM API endpoint | `https://api.openai.com/v1` | Your LLM endpoint |
-| `llm.model_name` | LLM model | `gpt-4o` | Your preferred model |
-| `evaluation.base_url` | Evaluation API endpoint | `https://api.openai.com/v1` | Your evaluation endpoint |
-| `evaluation.model_name` | Evaluation model | `gpt-4o` | Your preferred model |
+Ensure required [environment variables](#local-development) are set before performing docker compose deployment:
 
 2. **Build and start services:**
 
