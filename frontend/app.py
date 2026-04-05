@@ -210,6 +210,29 @@ def get_job_result(job_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def fetch_image_from_backend(image_path: str) -> Optional[bytes]:
+    """Fetch image bytes from the backend API.
+
+    Args:
+        image_path: Relative path like /images/{job_id}/variant/{filename}
+
+    Returns:
+        Image bytes or None if fetch fails
+    """
+    url = f"{API_BASE_URL}{image_path}"
+    logger.info(f"Fetching image from: {url}")
+    try:
+        response = requests.get(url, timeout=30)
+        if response.status_code == 200:
+            logger.info(f"Successfully fetched image from {url}")
+            return response.content
+        logger.error(f"Failed to fetch image: {response.status_code}")
+        return None
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to fetch image from {url}: {e}")
+        return None
+
+
 def display_recommendation_form(index: int, rec: Dict[str, str]) -> None:
     """Display a form for editing a single recommendation."""
     col1, col2 = st.columns([3, 1])
@@ -331,7 +354,7 @@ def display_job_status(job_id: str) -> None:
     # Poll for updates if processing
     if status["status"] == "processing":
         st.markdown("*Polling for updates...*")
-        time.sleep(2)
+        time.sleep(30)
         st.rerun()
 
     # Show results if completed
@@ -356,27 +379,19 @@ def display_job_results(job_id: str) -> None:
         result_data=json.dumps(result),
     )
 
-    # Build full URLs for images
-    input_image_url = None
+    # Fetch input image bytes from backend
+    input_image_bytes = None
     if result.get("input_image_url"):
-        input_image_url = (
-            API_BASE_URL + result["input_image_url"]
-            if not result["input_image_url"].startswith("http")
-            else result["input_image_url"]
-        )
+        input_image_bytes = fetch_image_from_backend(result["input_image_url"])
 
+    # Fetch variant images and store bytes
     variants = result.get("variants", [])
-    if variants:
-        # Build full URLs for variants
-        for variant in variants:
-            variant["full_url"] = (
-                API_BASE_URL + variant["variant_url"]
-                if not variant["variant_url"].startswith("http")
-                else variant["variant_url"]
-            )
+    for variant in variants:
+        if variant.get("variant_url"):
+            variant["image_bytes"] = fetch_image_from_backend(variant["variant_url"])
 
     # Display side-by-side comparison with variant navigation
-    if input_image_url and variants:
+    if input_image_bytes and variants:
         st.subheader("Image Comparison")
 
         # Get selected variant index from session state
@@ -394,7 +409,7 @@ def display_job_results(job_id: str) -> None:
             # Left column: Input image
             with col1:
                 st.markdown("**Original Image**")
-                st.image(input_image_url, use_container_width=True)
+                st.image(input_image_bytes, use_container_width=True)
 
             # Right column: Selected variant with navigation below
             with col2:
@@ -403,7 +418,10 @@ def display_job_results(job_id: str) -> None:
                     f"**Variant {selected_variant_index + 1} of {len(variants)}**",
                     unsafe_allow_html=True,
                 )
-                st.image(selected_variant["full_url"], use_container_width=True)
+                if selected_variant.get("image_bytes"):
+                    st.image(selected_variant["image_bytes"], use_container_width=True)
+                else:
+                    st.error("Failed to load variant image")
                 st.metric(
                     "Evaluation Score",
                     f"{selected_variant['evaluation_score']:.2f}/10",
@@ -430,9 +448,9 @@ def display_job_results(job_id: str) -> None:
                             st.rerun()
 
     # Fallback: Display input image only if no variants
-    elif input_image_url:
+    elif input_image_bytes:
         st.subheader("Input Image")
-        st.image(input_image_url, use_container_width=True)
+        st.image(input_image_bytes, use_container_width=True)
 
     # Display variants list if exists but no input image
     elif variants:
@@ -441,7 +459,10 @@ def display_job_results(job_id: str) -> None:
             with st.expander(
                 f"Variant {i + 1} for: {variant.get('recommendation_id', 'Unknown')}"
             ):
-                st.image(variant["full_url"], use_container_width=True)
+                if variant.get("image_bytes"):
+                    st.image(variant["image_bytes"], use_container_width=True)
+                else:
+                    st.error("Failed to load variant image")
                 st.metric("Evaluation Score", f"{variant['evaluation_score']:.2f}/10")
                 st.metric("Iterations", variant["iterations"])
 
@@ -532,13 +553,14 @@ def display_job_history() -> None:
                     # Display input image
                     if result.get("input_image_url"):
                         st.subheader("Input Image")
-                        # Prepend API base URL to the image path
-                        image_url = (
-                            API_BASE_URL + result["input_image_url"]
-                            if not result["input_image_url"].startswith("http")
-                            else result["input_image_url"]
+                        # Fetch image bytes from backend
+                        image_bytes = fetch_image_from_backend(
+                            result["input_image_url"]
                         )
-                        st.image(image_url)
+                        if image_bytes:
+                            st.image(image_bytes)
+                        else:
+                            st.error("Failed to load input image")
 
                     # Display report content
                     if result.get("report_content"):
